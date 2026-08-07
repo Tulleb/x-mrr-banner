@@ -90,14 +90,14 @@ def build_parser() -> argparse.ArgumentParser:
     update = sub.add_parser("update", help="Fetch revenues, compose banner, upload to X")
     update.add_argument(
         "--period",
-        required=True,
-        choices=["daily", "weekly", "monthly"],
-        help="Reporting period to render",
+        default="monthly",
+        choices=["monthly"],
+        help="Reporting period to render (only monthly is supported for now)",
     )
     update.add_argument(
         "--force",
         action="store_true",
-        help="Run even if the period is disabled in config.yaml",
+        help="Run even if monthly is disabled in config.yaml",
     )
     update.add_argument(
         "--dry-run",
@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument(
         "--skip-config",
         action="store_true",
-        help="Do not prompt to update config.yaml schedules / upload_to_x",
+        help="Do not prompt to update config.yaml monthly schedule / upload_to_x",
     )
     setup.set_defaults(func=cmd_setup)
 

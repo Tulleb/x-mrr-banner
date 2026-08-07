@@ -42,9 +42,9 @@ python -m x_mrr_banner setup   # --local-only / --github-only / --skip-config
 
 ```bash
 python -m x_mrr_banner setup
-python -m x_mrr_banner update --period monthly
-python -m x_mrr_banner update --period monthly --dry-run --force
-python -m x_mrr_banner update --period monthly --upload
+python -m x_mrr_banner update
+python -m x_mrr_banner update --dry-run --force
+python -m x_mrr_banner update --upload
 python -m x_mrr_banner generate_template
 ```
 
@@ -54,12 +54,12 @@ python -m x_mrr_banner generate_template
 
 | Key | Purpose |
 | ----- | --------- |
-| `schedules.daily/weekly/monthly` | Disabled periods no-op on cron |
+| `schedules.monthly` | `false` = monthly cron / dispatch no-ops |
 | `upload_to_x` | `false` = compose only (no X API) |
 | `currency` | Display label |
 | `apple_skus` / `google_package_names` | Optional filters (empty = all) |
 
-Template prompt notes: [`docs/TEMPLATE.md`](docs/TEMPLATE.md).
+Only the **monthly** schedule is supported for now (previous full calendar month). Template prompt notes: [`docs/TEMPLATE.md`](docs/TEMPLATE.md).
 
 ## Secrets
 
@@ -74,6 +74,6 @@ See [`.env.example`](.env.example). Never commit `.env`.
 
 ## How it works
 
-1. Cron / workflow resolves `daily` \| `weekly` \| `monthly` (skip if disabled).
+1. Monthly cron (1st of month) / workflow dispatch runs (skip if `schedules.monthly` is false).
 2. Requires committed `assets/template/{background.png,layout.yaml}`.
-3. Fetches Apple + Google revenues, overlays text/numbers/chart, optionally uploads via `POST https://api.x.com/1.1/account/update_profile_banner.json`.
+3. Fetches Apple + Google revenues for the previous full month, overlays text/numbers/chart, optionally uploads via `POST https://api.x.com/1.1/account/update_profile_banner.json`.

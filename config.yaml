@@ -1,8 +1,6 @@
-# Enable only the schedules you want the GitHub Action to actually run.
-# Disabled periods exit successfully without fetching revenue or uploading.
+# Monthly schedule for the GitHub Action (previous full calendar month).
+# When false, the Action exits successfully without fetching or uploading.
 schedules:
-  daily: false
-  weekly: false
   monthly: true
 
 # When false, crons/update still fetch + compose the banner (and CI uploads an

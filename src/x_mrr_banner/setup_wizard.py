@@ -622,10 +622,13 @@ def update_config_from_prompts() -> None:
     _print_header("Schedule & upload preferences (config.yaml)")
     raw = _load_config_raw()
     schedules = dict(raw.get("schedules") or {})
-    ui.info("Enable which GitHub Action schedules should actually run?")
-    for period in ("daily", "weekly", "monthly"):
-        current = bool(schedules.get(period, period == "monthly"))
-        schedules[period] = _prompt_yes_no(f"  Enable {period}?", default=current)
+    ui.info("Only the monthly schedule is supported for now (previous full calendar month).")
+    schedules = {
+        "monthly": _prompt_yes_no(
+            "Enable monthly GitHub Action runs?",
+            default=bool(schedules.get("monthly", True)),
+        )
+    }
     upload = _prompt_yes_no(
         "Upload composed banners to X automatically?",
         default=bool(raw.get("upload_to_x", False)),
@@ -641,11 +644,9 @@ def update_config_from_prompts() -> None:
 
     # Preserve comments by rewriting a clean documented file.
     content = (
-        "# Enable only the schedules you want the GitHub Action to actually run.\n"
-        "# Disabled periods exit successfully without fetching revenue or uploading.\n"
+        "# Monthly schedule for the GitHub Action (previous full calendar month).\n"
+        "# When false, the Action exits successfully without fetching or uploading.\n"
         "schedules:\n"
-        f"  daily: {'true' if schedules.get('daily') else 'false'}\n"
-        f"  weekly: {'true' if schedules.get('weekly') else 'false'}\n"
         f"  monthly: {'true' if schedules.get('monthly') else 'false'}\n"
         "\n"
         "# When false, crons/update still fetch + compose the banner (and CI uploads an\n"
