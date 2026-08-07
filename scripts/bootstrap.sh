@@ -1,23 +1,47 @@
 #!/usr/bin/env bash
-# Bootstrap for juniors: create venv, install Python deps, ensure gh, run setup wizard.
+# Bootstrap: create venv, install Python deps, ensure gh, run setup wizard.
 set -euo pipefail
+
+# Prefer color in interactive bootstrap even if the environment sets NO_COLOR.
+export FORCE_COLOR="${FORCE_COLOR:-1}"
+# Clear NO_COLOR for this process tree so the Python wizard can colorize too.
+unset NO_COLOR
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-echo "============================================================"
-echo "x-mrr-banner bootstrap"
-echo "============================================================"
-echo "Repo: $ROOT"
-echo
+# --- colors (disabled when not a TTY, or NO_COLOR is set) ---
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_RESET=$'\033[0m'
+  C_BOLD=$'\033[1m'
+  C_DIM=$'\033[2m'
+  C_RED=$'\033[31m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_BLUE=$'\033[34m'
+  C_CYAN=$'\033[36m'
+else
+  C_RESET="" C_BOLD="" C_DIM="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_CYAN=""
+fi
+
+header()  { printf '\n%s%s%s\n' "$C_BOLD$C_CYAN" "============================================================" "$C_RESET"
+            printf '%s%s%s\n' "$C_BOLD$C_CYAN" "$*" "$C_RESET"
+            printf '%s%s%s\n\n' "$C_BOLD$C_CYAN" "============================================================" "$C_RESET"; }
+ok()      { printf '%s✓%s %s\n' "$C_GREEN$C_BOLD" "$C_RESET" "$*"; }
+err()     { printf '%s✗%s %s\n' "$C_RED$C_BOLD" "$C_RESET" "$*" >&2; }
+warn()    { printf '%s!%s %s\n' "$C_YELLOW$C_BOLD" "$C_RESET" "$*"; }
+step()    { printf '%s→%s %s\n' "$C_BLUE$C_BOLD" "$C_RESET" "$*"; }
+info()    { printf '%s%s%s\n' "$C_DIM" "$*" "$C_RESET"; }
+bullet()  { printf '  %s•%s %s\n' "$C_DIM" "$C_RESET" "$*"; }
+
+header "x-mrr-banner bootstrap"
+info "Repo: $ROOT"
 
 need_python() {
-  echo "Python 3.11+ is required but was not found."
-  echo "Read README.md → Prerequisites for install steps."
-  echo "  macOS:   brew install python@3.12"
-  echo "  Ubuntu:  sudo apt install -y python3 python3-venv python3-pip"
-  echo "  Windows: use scripts/bootstrap.ps1 or winget install Python.Python.3.12"
-  echo "Download: https://www.python.org/downloads/"
+  err "Python 3.11+ is required but was not found."
+  info "See README.md → Prerequisites."
+  bullet "brew install python@3.12"
+  bullet "https://www.python.org/downloads/"
   exit 1
 }
 
@@ -35,65 +59,65 @@ if [[ -z "$PYTHON" ]]; then
   need_python
 fi
 
-echo "✓ Python: $($PYTHON --version)"
+ok "Python: $($PYTHON --version)"
 
 if ! command -v git >/dev/null 2>&1; then
-  echo "✗ Git not found."
-  echo "  macOS:  xcode-select --install   OR   brew install git"
-  echo "  Ubuntu: sudo apt install -y git"
-  echo "  Docs:   https://git-scm.com/downloads"
+  err "Git not found."
+  bullet "xcode-select --install   OR   brew install git"
+  bullet "https://git-scm.com/downloads"
   exit 1
 fi
-echo "✓ Git: $(git --version)"
+ok "Git: $(git --version)"
 
 if [[ ! -d .venv ]]; then
-  echo "→ Creating virtual environment (.venv)"
+  step "Creating virtual environment (.venv)"
   "$PYTHON" -m venv .venv
 fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
-echo "✓ Virtualenv active: $VIRTUAL_ENV"
+ok "Virtualenv active: $VIRTUAL_ENV"
 
-echo "→ Upgrading pip"
+step "Upgrading pip"
 python -m pip install --upgrade pip
 
-echo "→ Installing x-mrr-banner and dependencies"
+step "Installing x-mrr-banner and dependencies"
 python -m pip install -e .
 
 ensure_gh() {
   if command -v gh >/dev/null 2>&1; then
-    echo "✓ GitHub CLI: $(gh --version | head -n 1)"
+    ok "GitHub CLI: $(gh --version | head -n 1)"
     return 0
   fi
-  echo "GitHub CLI (gh) not found — needed to upload Actions secrets to your fork."
+  warn "GitHub CLI (gh) not found — needed to upload Actions secrets to your fork."
   if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
-    read -r -p "Install gh with Homebrew now? [Y/n] " ans
+    read -r -p "$(printf '%sInstall gh with Homebrew now? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
     ans=${ans:-Y}
     if [[ "$ans" =~ ^[Yy]$ ]]; then
+      step "brew install gh"
       brew install gh
     fi
   elif command -v apt-get >/dev/null 2>&1; then
-    read -r -p "Install gh with apt now (may ask for sudo)? [Y/n] " ans
+    read -r -p "$(printf '%sInstall gh with apt now (may ask for sudo)? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
     ans=${ans:-Y}
     if [[ "$ans" =~ ^[Yy]$ ]]; then
+      step "apt-get install gh"
       sudo apt-get update
       sudo apt-get install -y gh || {
-        echo "apt install failed. See https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
+        err "apt install failed. See https://github.com/cli/cli/blob/trunk/docs/install_linux.md"
       }
     fi
   else
-    echo "Install manually: https://cli.github.com/"
-    echo "  macOS:   brew install gh"
-    echo "  Windows: winget install GitHub.cli"
+    warn "Install manually: https://cli.github.com/"
+    bullet "brew install gh"
   fi
 
   if command -v gh >/dev/null 2>&1; then
-    echo "✓ GitHub CLI installed"
+    ok "GitHub CLI installed"
   else
-    echo "! gh still missing — you can finish credentials locally and sync later:"
-    echo "    python -m x_mrr_banner setup --local-only"
-    echo "    python -m x_mrr_banner setup --github-only"
+    warn "gh still missing — you can finish credentials locally and sync later:"
+    bullet "python -m x_mrr_banner setup --local-only"
+    bullet "python -m x_mrr_banner setup --github-only"
   fi
 }
 
@@ -102,19 +126,20 @@ ensure_gh
 if command -v gh >/dev/null 2>&1; then
   if ! gh auth status >/dev/null 2>&1; then
     echo
-    echo "You are not logged into GitHub CLI."
-    read -r -p "Run gh auth login now? [Y/n] " ans
+    warn "You are not logged into GitHub CLI."
+    read -r -p "$(printf '%sRun gh auth login now? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
     ans=${ans:-Y}
     if [[ "$ans" =~ ^[Yy]$ ]]; then
+      step "gh auth login"
       gh auth login
     fi
   else
-    echo "✓ gh authenticated"
+    ok "gh authenticated"
   fi
 fi
 
 echo
-echo "→ Starting interactive setup wizard"
-echo "   (API keys → .env + optional GitHub Actions secrets)"
+step "Starting interactive setup wizard"
+info "API keys → .env + optional GitHub Actions secrets"
 echo
 exec python -m x_mrr_banner setup "$@"

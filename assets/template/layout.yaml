@@ -1,0 +1,59 @@
+regions:
+  period_label:
+    type: text
+    metric: period_label
+    box:
+    - 48
+    - 40
+    - 500
+    - 40
+    font_size: 24
+    bold: false
+    color: '#FFFFFF'
+    anchor: lt
+  total_revenue:
+    type: text
+    metric: total_revenue
+    box:
+    - 48
+    - 100
+    - 600
+    - 120
+    font_size: 72
+    bold: true
+    color: '#FFFFFF'
+    anchor: lt
+  apple_revenue:
+    type: text
+    metric: apple_revenue
+    prefix: 'Apple  '
+    box:
+    - 48
+    - 250
+    - 400
+    - 40
+    font_size: 28
+    bold: false
+    color: '#FFFFFF'
+    anchor: lt
+  google_revenue:
+    type: text
+    metric: google_revenue
+    prefix: 'Google  '
+    box:
+    - 48
+    - 300
+    - 400
+    - 40
+    font_size: 28
+    bold: false
+    color: '#FFFFFF'
+    anchor: lt
+  revenue_chart:
+    type: chart
+    box:
+    - 700
+    - 80
+    - 720
+    - 340
+    color: '#FFFFFF'

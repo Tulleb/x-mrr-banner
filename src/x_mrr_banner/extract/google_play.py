@@ -28,12 +28,17 @@ def _require_env(name: str) -> str:
 
 def _load_service_account_info() -> dict[str, Any]:
     raw = _require_env("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
-    path = Path(raw)
-    if path.exists() and path.is_file():
-        with path.open(encoding="utf-8") as handle:
-            return json.load(handle)
+    stripped = raw.strip()
+    if not stripped.startswith("{"):
+        path = Path(stripped).expanduser()
+        try:
+            if path.is_file():
+                with path.open(encoding="utf-8") as handle:
+                    return json.load(handle)
+        except OSError:
+            pass
     try:
-        return json.loads(raw)
+        return json.loads(stripped)
     except json.JSONDecodeError as exc:
         raise GooglePlayError(
             "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON must be a JSON file path or raw JSON string"

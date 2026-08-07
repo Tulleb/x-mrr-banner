@@ -7,7 +7,7 @@ schedules:
 
 # When false, crons/update still fetch + compose the banner (and CI uploads an
 # artifact) but skip calling the X API. Set true once X credentials are ready.
-upload_to_x: false
+upload_to_x: true
 
 # Display / aggregation currency label (reports may still be multi-currency).
 currency: USD

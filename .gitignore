@@ -151,6 +151,11 @@ activemq-data/
 .env
 .envrc
 .venv
+
+# App Store Connect private keys / local secret drops (never commit)
+secrets/
+*.p8
+AuthKey_*.p8
 env/
 venv/
 ENV/
@@ -195,9 +200,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #   that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#   and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#   and can be added to the global gitignore or merged into this file. However, if you prefer,
 #   you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 # Temporary file for partial code execution
@@ -219,3 +224,6 @@ __marimo__/
 
 # Local banner output
 output/
+
+# Mac OS
+.DS_Store
