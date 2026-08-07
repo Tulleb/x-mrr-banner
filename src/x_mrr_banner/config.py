@@ -71,7 +71,9 @@ class ChallengeConfig:
 
 @dataclass
 class ContentConfig:
-    headline: str = "$10k MRR Target"
+    top_label: str = "BUILDING IN PUBLIC"
+    headline: str = ""
+    subheadline: str = "Sharing the real numbers, wins & failures"
     apps_label: str = ""
 
 
@@ -94,6 +96,9 @@ class AppEntry:
     # IAP / auto-renewable subscription Product IDs as they appear in ASC sales SKU column.
     apple_iap_skus: list[str] = field(default_factory=list)
     google_package_names: list[str] = field(default_factory=list)
+    # Optional logo overrides (resolved before iTunes lookup by first apple_sku).
+    logo_path: str = ""
+    logo_url: str = ""
 
     def revenue_apple_skus(self) -> list[str]:
         """App SKU + IAP/subscription SKUs used to filter ASC sales rows."""
@@ -270,7 +275,9 @@ def _load_content(raw: dict[str, Any]) -> ContentConfig:
         data = {}
     defaults = ContentConfig()
     return ContentConfig(
-        headline=str(data.get("headline") or defaults.headline),
+        top_label=str(data.get("top_label") or defaults.top_label),
+        headline=str(data.get("headline") or ""),
+        subheadline=str(data.get("subheadline") or defaults.subheadline),
         apps_label=str(data.get("apps_label") or ""),
     )
 
@@ -315,6 +322,8 @@ def _load_apps(raw: dict[str, Any]) -> list[AppEntry]:
                     for s in (item.get("google_package_names") or [])
                     if str(s).strip()
                 ],
+                logo_path=str(item.get("logo_path") or "").strip(),
+                logo_url=str(item.get("logo_url") or "").strip(),
             )
         )
     # Legacy top-level filters → single synthetic app if apps missing

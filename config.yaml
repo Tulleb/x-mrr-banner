@@ -15,8 +15,11 @@ challenge:
   target_mrr: 10000.0
 
 # Banner copy (period_label / revenue_label are filled from live data at update time)
+# Leave headline empty to use: "{total_periods} TO {target_mrr}"
 content:
-  headline: "$10k MRR Target"
+  top_label: "BUILDING IN PUBLIC"
+  headline: ""
+  subheadline: "Sharing the real numbers, wins & failures"
   apps_label: "Apps in progress"
 
 # Visual direction for the OpenAI banner prompt
@@ -31,6 +34,8 @@ theme:
   chart_color: "#7CFFB2"
 
 # Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)
+# Optional per-app logo overrides: logo_path (repo-relative or absolute) or logo_url.
+# Otherwise icons are fetched from iTunes via the first apple_skus entry.
 apps:
   - name: "Voila"
     apple_skus:

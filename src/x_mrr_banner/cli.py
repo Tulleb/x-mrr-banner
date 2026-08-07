@@ -5,6 +5,7 @@ import logging
 
 from x_mrr_banner.banner.context import build_banner_context, render_banner_prompt
 from x_mrr_banner.banner.generate import generate_banner
+from x_mrr_banner.banner.icons import MAX_LOGO_SLOTS, fetch_app_icons
 from x_mrr_banner.config import (
     AppConfig,
     RevenueSnapshot,
@@ -55,8 +56,10 @@ def _log_banner_numbers(config: AppConfig, snapshot: RevenueSnapshot) -> None:
         ctx["revenue"]["target_progress_percent"],
     )
     logger.info(
-        "Content labels: headline=%r period=%r revenue=%r",
+        "Content labels: top=%r headline=%r sub=%r period=%r revenue=%r",
+        ctx["content"]["top_label"],
         ctx["content"]["headline"],
+        ctx["content"]["subheadline"],
         ctx["content"]["period_label"],
         ctx["content"]["revenue_label"],
     )
@@ -125,7 +128,23 @@ def cmd_update(args: argparse.Namespace) -> int:
     banner_md.write_text(prompt, encoding="utf-8")
     logger.info("Wrote rendered prompt (%d chars) → %s", len(prompt), banner_md)
 
-    output = generate_banner(prompt, destination=banner_png)
+    app_names = [app.name for app in config.apps[:MAX_LOGO_SLOTS]]
+    icons = fetch_app_icons(config.apps) if app_names else []
+    if app_names:
+        logger.info(
+            "Will detect %d pure-red icon marker(s) for: %s",
+            len(app_names),
+            ", ".join(app_names),
+        )
+
+    output = generate_banner(
+        prompt,
+        destination=banner_png,
+        icons=icons or None,
+        app_names=app_names or None,
+        background_color=config.theme.background_color,
+        text_color=config.theme.text_color,
+    )
     logger.info("Generated banner at %s", output)
 
     should_upload = config.upload_to_x and not args.dry_run

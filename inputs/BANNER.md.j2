@@ -2,8 +2,9 @@
 
 Generate a complete X profile banner containing the real business data below.
 
-The output must be the FINAL banner image.
-Do not leave placeholders visible.
+The output must be the FINAL banner layout (text, status card, progress bar).
+App icon markers are solid pure red ({{ icon_marker_hex }}) squares — real logos replace them afterward.
+Do not leave other placeholders visible.
 All supplied values must be rendered accurately.
 
 ## Canvas
@@ -38,39 +39,21 @@ All supplied values must be rendered accurately.
 
 {% endfor %}
 
-## Revenue History
-
-Use the following REAL values to draw a stacked bar chart.
-
-Each period is one bar. Stack segments by **app** (not by store).
-Segment heights are that app's total revenue for the period (Apple + Google combined).
-Bar height equals the period Total.
-
-{% if revenue.chart_app_names %}
-| Period |{% for name in revenue.chart_app_names %} {{ name }} |{% endfor %} Total |
-| --- |{% for name in revenue.chart_app_names %} ---: |{% endfor %} ---: |
-{% for period in revenue.history %}
-| {{ period.label }} |{% for app in period.apps %} {{ app.total_formatted }} |{% endfor %} {{ period.total_formatted }} |
-{% endfor %}
-{% else %}
-| Period | Total |
-| --- | ---: |
-{% for period in revenue.history %}
-| {{ period.label }} | {{ period.total_formatted }} |
-{% endfor %}
-{% endif %}
-
 ## Text to Render
 
 Render the following text clearly and exactly.
 
-### Headline
+### Top Label
+
+{{ content.top_label }}
+
+### Main Headline
 
 {{ content.headline }}
 
-### Apps Line
+### Subheadline
 
-{{ content.apps_label }}
+{{ content.subheadline }}
 
 ### Period
 
@@ -109,6 +92,7 @@ Avoid:
 - excessive neon
 - busy patterns
 - photographic imagery
+- any pure red / {{ icon_marker_hex }} except the icon markers
 
 ## Composition
 
@@ -117,10 +101,35 @@ Follow this structure:
 ### Left / Main Area
 
 Show:
-- headline
-- apps being built
+- top label
+- main headline
+- subheadline
+{% if icon_apps %}
+- apps label: {{ content.apps_label }}
+- one solid pure-red icon marker per app (see Red Icon Markers), with the app name to the right of each marker
+{% endif %}
 
-The headline should be the dominant visual element.
+The main headline should be the dominant visual element.
+
+{% if icon_apps %}
+### Red Icon Markers
+
+Real app icons are composited programmatically AFTER generation by detecting these markers.
+
+Draw exactly {{ icon_apps|length }} solid rounded squares filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0):
+
+{% for name in icon_apps %}
+- Marker {{ loop.index }} → app "{{ name }}" (left → right order)
+{% endfor %}
+
+Rules:
+- fill MUST be solid pure {{ icon_marker_hex }} — no gradients, no borders, no glow, no texture
+- do not use {{ icon_marker_hex }} / pure red anywhere else on the banner
+- do not draw real logos, glyphs, photos, or text inside the markers
+- place markers in a horizontal row under the apps label
+- put each app name as plain text immediately to the right of its marker
+- markers should be roughly 40–56 px on the final {{ banner.width }}×{{ banner.height }} canvas (scale proportionally)
+{% endif %}
 
 ### Right Status Card
 
@@ -131,36 +140,26 @@ Show:
 
 Use a dark rounded card with subtle borders and glow.
 
-### Bottom Revenue Chart
+### Bottom Progress Bar
 
-Draw a real stacked bar chart using the supplied revenue history.
+Draw a single wide horizontal progress bar as the main bottom graphic (full width within safe margins).
 
-Requirements:
-- one vertical bar per period, oldest → newest left to right
-- stack each bar by **app** (segment per app), not by Apple / Google store
-- use only the real per-app values provided
-- preserve chronological order
-- visually distinguish apps with distinct segment colors (derive from primary / accent / chart colors)
-- show a compact legend with app names
-- show total bar height from the Total column
-- keep period labels readable
-- do not invent intermediate values
-- do not fabricate missing data
-- do not stack or color by store
+Style:
+- capsule / pill track with rounded ends
+- dark translucent track, subtle border
+- filled portion with a smooth gradient (accent → primary / chart color)
+- circular marker (thumb) on the fill edge with a thin light outline
+- optional subtle tick marks along the track
 
-### Bottom Progress Indicator
+Labels (exactly):
+- left, below the track: {{ challenge.start_mrr_formatted }}
+- right, below the track: {{ challenge.target_mrr_formatted }}
 
-Show progress from:
-
-{{ challenge.start_mrr_formatted }}
-
-to:
-
-{{ challenge.target_mrr_formatted }}
-
-Position the marker according to:
+Position the fill and marker at:
 
 {{ revenue.target_progress_percent }}%
+
+Do not draw a revenue history chart, stacked bars, line chart, or legend.
 
 ## Accuracy Rules
 
@@ -174,13 +173,14 @@ Therefore:
 - Do not change dates.
 - Do not change currencies.
 - Do not round values unless the formatted value already contains rounding.
-- Do not fabricate chart points.
 - Do not substitute placeholder values.
 - Do not display Jinja variables or braces.
 - Do not add additional statistics that were not supplied.
+- Do not invent a revenue history chart.
 
 ## Final Output
 
 Generate one complete polished X profile banner.
 
-It must look publication-ready and require no programmatic visual overlays afterward.
+Leave the pure-red icon markers as specified. Real logos replace those markers afterward.
+All other content must be publication-ready with no further overlays required.

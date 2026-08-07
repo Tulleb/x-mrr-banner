@@ -9,6 +9,7 @@ from pathlib import Path
 from openai import OpenAI
 from PIL import Image
 
+from x_mrr_banner.banner.icons import overlay_app_icons
 from x_mrr_banner.config import (
     BANNER_HEIGHT,
     BANNER_OUTPUT_PATH,
@@ -48,7 +49,15 @@ def _fit_to_banner(image: Image.Image, width: int = BANNER_WIDTH, height: int = 
     return src.resize((width, height), Image.Resampling.LANCZOS)
 
 
-def _save_openai_image(response: object, destination: Path) -> None:
+def _save_openai_image(
+    response: object,
+    destination: Path,
+    *,
+    icons: list[Image.Image] | None = None,
+    app_names: list[str] | None = None,
+    background_color: str = "#0B0D10",
+    text_color: str = "#FFFFFF",
+) -> None:
     data = getattr(response, "data", None) or []
     if not data:
         raise RuntimeError(
@@ -69,6 +78,14 @@ def _save_openai_image(response: object, destination: Path) -> None:
     with Image.open(BytesIO(raw)) as image:
         logger.info("OpenAI image raw size: %sx%s", image.size[0], image.size[1])
         fitted = _fit_to_banner(image)
+        if icons and app_names:
+            fitted = overlay_app_icons(
+                fitted,
+                icons,
+                app_names,
+                background_color=background_color,
+                text_color=text_color,
+            )
         fitted.save(destination, format="PNG")
         logger.info("Saved banner size: %sx%s", fitted.size[0], fitted.size[1])
 
@@ -77,6 +94,10 @@ def generate_banner(
     prompt_markdown: str,
     *,
     destination: Path | None = None,
+    icons: list[Image.Image] | None = None,
+    app_names: list[str] | None = None,
+    background_color: str = "#0B0D10",
+    text_color: str = "#FFFFFF",
 ) -> Path:
     """Generate the final X banner image from a fully rendered prompt."""
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -101,6 +122,13 @@ def generate_banner(
         quality="low",
         output_format="png",
     )
-    _save_openai_image(response, output_path)
+    _save_openai_image(
+        response,
+        output_path,
+        icons=icons,
+        app_names=app_names,
+        background_color=background_color,
+        text_color=text_color,
+    )
     logger.info("Banner written to %s", output_path)
     return output_path

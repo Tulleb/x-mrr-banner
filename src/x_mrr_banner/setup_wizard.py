@@ -716,8 +716,11 @@ def _write_config_yaml(
         f"  target_mrr: {challenge['target_mrr']}",
         "",
         "# Banner copy (period_label / revenue_label are filled from live data at update time)",
+        "# Leave headline empty to use: \"{total_periods} TO {target_mrr}\"",
         "content:",
+        f"  top_label: {_yaml_quote(content['top_label'])}",
         f"  headline: {_yaml_quote(content['headline'])}",
+        f"  subheadline: {_yaml_quote(content['subheadline'])}",
         f"  apps_label: {_yaml_quote(content['apps_label'])}",
         "",
         "# Visual direction for the OpenAI banner prompt",
@@ -761,6 +764,12 @@ def _write_config_yaml(
                     lines.append(f"      - {_yaml_quote(package)}")
             else:
                 lines.append("    google_package_names: []")
+            logo_path = str(app.get("logo_path") or "").strip()
+            logo_url = str(app.get("logo_url") or "").strip()
+            if logo_path:
+                lines.append(f"    logo_path: {_yaml_quote(logo_path)}")
+            if logo_url:
+                lines.append(f"    logo_url: {_yaml_quote(logo_url)}")
     lines.append("")
     DEFAULT_CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
 
@@ -775,7 +784,9 @@ _DEFAULT_CHALLENGE = {
 }
 
 _DEFAULT_CONTENT = {
-    "headline": "$10k MRR Target",
+    "top_label": "BUILDING IN PUBLIC",
+    "headline": "",
+    "subheadline": "Sharing the real numbers, wins & failures",
     "apps_label": "Apps in progress",
 }
 
@@ -842,11 +853,18 @@ def _existing_challenge(raw: dict) -> dict | None:
 
 def _existing_content(raw: dict) -> dict | None:
     existing = raw.get("content") if isinstance(raw.get("content"), dict) else {}
-    headline = str(existing.get("headline") or "").strip()
-    if not headline and not str(existing.get("apps_label") or "").strip():
-        return None
+    top_label = str(existing.get("top_label") or "").strip()
+    if not top_label and not str(existing.get("subheadline") or "").strip():
+        # Treat legacy headline-only configs as present when apps_label/headline set.
+        if not (
+            str(existing.get("headline") or "").strip()
+            or str(existing.get("apps_label") or "").strip()
+        ):
+            return None
     return {
-        "headline": headline or str(_DEFAULT_CONTENT["headline"]),
+        "top_label": top_label or str(_DEFAULT_CONTENT["top_label"]),
+        "headline": str(existing.get("headline") or ""),
+        "subheadline": str(existing.get("subheadline") or _DEFAULT_CONTENT["subheadline"]),
         "apps_label": str(existing.get("apps_label") or ""),
     }
 
@@ -879,6 +897,8 @@ def _existing_apps(raw: dict) -> list[dict] | None:
             "apple_skus": [str(s) for s in (a.get("apple_skus") or [])],
             "apple_iap_skus": [str(s) for s in (a.get("apple_iap_skus") or [])],
             "google_package_names": [str(s) for s in (a.get("google_package_names") or [])],
+            "logo_path": str(a.get("logo_path") or ""),
+            "logo_url": str(a.get("logo_url") or ""),
         }
         for a in raw["apps"]
         if isinstance(a, dict) and a.get("name")
@@ -960,8 +980,10 @@ def _collect_content(
     (progress.header if progress else _print_header)("Banner content")
     existing = _existing_content(raw)
     if existing is not None:
+        headline_display = existing["headline"] or "(auto: N TO target)"
         ui.ok(
-            f"Current values: headline={existing['headline']!r}, "
+            f"Current values: top_label={existing['top_label']!r}, "
+            f"headline={headline_display!r}, "
             f"apps_label={existing['apps_label']!r}"
         )
         if not _prompt_yes_no("Change current values?", default=False):
@@ -970,14 +992,23 @@ def _collect_content(
         ui.info("Updating Banner content.")
 
     defaults = existing or {}
+    default_headline = str(defaults.get("headline") or "")
+    auto_hint = (
+        f"{challenge.get('total_periods') or 12} TO "
+        f"${float(challenge.get('target_mrr') or 10000):,.0f}".replace(".0", "")
+    )
     content = {
+        "top_label": _prompt_text(
+            "Top label",
+            str(defaults.get("top_label") or _DEFAULT_CONTENT["top_label"]),
+        ),
         "headline": _prompt_text(
-            "Headline",
-            str(
-                defaults.get("headline")
-                or challenge.get("headline")
-                or _DEFAULT_CONTENT["headline"]
-            ),
+            f"Main headline (blank = auto “{auto_hint}”)",
+            default_headline,
+        ),
+        "subheadline": _prompt_text(
+            "Subheadline",
+            str(defaults.get("subheadline") or _DEFAULT_CONTENT["subheadline"]),
         ),
         "apps_label": _prompt_text(
             "Apps line",
@@ -1119,12 +1150,29 @@ def _collect_apps(raw: dict, *, progress: _WizardProgress | None = None) -> list
         packages = _parse_csv_list(
             _prompt_text("Google package name(s), optional", pkg_default)
         )
+
+        print()
+        _print_intro(
+            "Logo overrides (optional) — otherwise icons are fetched from the App Store\n"
+            "via the first Apple app SKU (iTunes lookup). Use a local path or URL to override."
+        )
+        logo_path = _prompt_text(
+            "Local logo path, optional",
+            str(default.get("logo_path") or ""),
+        ).strip()
+        logo_url = _prompt_text(
+            "Logo URL, optional",
+            str(default.get("logo_url") or ""),
+        ).strip()
+
         apps.append(
             {
                 "name": name,
                 "apple_skus": apple_skus,
                 "apple_iap_skus": apple_iap_skus,
                 "google_package_names": packages,
+                "logo_path": logo_path,
+                "logo_url": logo_url,
             }
         )
     _advance_after_step("Apps saved — great job!")

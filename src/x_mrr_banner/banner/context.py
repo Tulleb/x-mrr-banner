@@ -5,6 +5,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from x_mrr_banner.banner.icons import ICON_MARKER_HEX, MAX_LOGO_SLOTS
 from x_mrr_banner.config import (
     BANNER_ASPECT_RATIO,
     BANNER_HEIGHT,
@@ -59,14 +60,14 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
     ]
 
     chart_app_names = [app.name for app in snapshot.apps]
+    icon_apps = [app.name for app in config.apps[:MAX_LOGO_SLOTS]]
 
     period = period_label(snapshot)
     revenue_formatted = format_currency(snapshot.total_revenue, currency)
 
-    content_headline = (
-        config.content.headline.strip()
-        or config.challenge.headline.strip()
-        or "$10k MRR Target"
+    target_mrr_formatted = format_currency(config.challenge.target_mrr, currency)
+    content_headline = config.content.headline.strip() or (
+        f"{config.challenge.total_periods} TO {target_mrr_formatted}"
     )
     return {
         "banner": {
@@ -80,7 +81,7 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "deadline": deadline.isoformat() if deadline else "",
             "current_period": current_period,
             "total_periods": config.challenge.total_periods,
-            "target_mrr_formatted": format_currency(config.challenge.target_mrr, currency),
+            "target_mrr_formatted": target_mrr_formatted,
             "start_mrr_formatted": format_currency(config.challenge.start_mrr, currency),
         },
         "revenue": {
@@ -90,8 +91,15 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "chart_app_names": chart_app_names,
         },
         "apps": apps,
+        "icon_apps": icon_apps,
+        "icon_marker_hex": ICON_MARKER_HEX,
         "content": {
+            "top_label": config.content.top_label.strip() or "BUILDING IN PUBLIC",
             "headline": content_headline,
+            "subheadline": (
+                config.content.subheadline.strip()
+                or "Sharing the real numbers, wins & failures"
+            ),
             "apps_label": config.content.apps_label,
             "period_label": period,
             "revenue_label": revenue_formatted,
