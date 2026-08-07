@@ -25,12 +25,8 @@ logger = logging.getLogger("x_mrr_banner")
 
 
 def cmd_update(args: argparse.Namespace) -> int:
-    period = parse_period(args.period)
+    period = parse_period("monthly")
     config = load_config()
-
-    if not args.force and not config.is_period_enabled(period):
-        logger.info("Period %s is disabled in config.yaml — skipping.", period)
-        return 0
 
     try:
         require_template_assets()
@@ -89,17 +85,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     update = sub.add_parser("update", help="Fetch revenues, compose banner, upload to X")
     update.add_argument(
-        "--period",
-        default="monthly",
-        choices=["monthly"],
-        help="Reporting period to render (only monthly is supported for now)",
-    )
-    update.add_argument(
-        "--force",
-        action="store_true",
-        help="Run even if monthly is disabled in config.yaml",
-    )
-    update.add_argument(
         "--dry-run",
         action="store_true",
         help="Compose the banner but do not upload to X",
@@ -139,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument(
         "--skip-config",
         action="store_true",
-        help="Do not prompt to update config.yaml monthly schedule / upload_to_x",
+        help="Do not prompt to update config.yaml (upload_to_x / currency)",
     )
     setup.set_defaults(func=cmd_setup)
 

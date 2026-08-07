@@ -33,6 +33,15 @@ def _sum_daily(source: dict[date, float], start: date, end: date) -> float:
     return total
 
 
+def _warn(source: str, message: str) -> None:
+    """Log a warning and emit a GitHub Actions annotation when running in CI."""
+    text = f"{source}: {message}"
+    logger.warning(text)
+    # Visible under the job's Annotations panel in GitHub Actions.
+    safe = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::warning title={source}::{safe}", flush=True)
+
+
 def collect_revenues(period: Period, config: AppConfig, as_of: date | None = None) -> RevenueSnapshot:
     primary_start, primary_end = period_window(period, as_of=as_of)
     windows = history_windows(period, HISTORY_POINTS[period], as_of=as_of)
@@ -47,23 +56,26 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
         apple_daily = apple.fetch_apple_daily_series(
             history_start, history_end, apple_skus=config.apple_skus
         )
-    except apple.AppleStoreError as exc:
-        logger.warning("Apple daily series unavailable (%s); using period reports", exc)
+    except Exception as exc:  # noqa: BLE001 — store failures must not abort the run
+        _warn("App Store Connect", f"daily series unavailable ({exc}); trying period reports")
         for start, end in windows:
             try:
                 apple_window_totals[(start, end)] = apple.fetch_apple_revenue(
                     period, start, end, apple_skus=config.apple_skus
                 )
-            except apple.AppleStoreError as window_exc:
-                logger.warning("Apple revenue missing for %s–%s: %s", start, end, window_exc)
+            except Exception as window_exc:  # noqa: BLE001
+                _warn(
+                    "App Store Connect",
+                    f"revenue missing for {start}–{end}: {window_exc}",
+                )
                 apple_window_totals[(start, end)] = 0.0
 
     try:
         google_daily = google_play.fetch_google_daily_series(
             history_start, history_end, package_names=config.google_package_names
         )
-    except google_play.GooglePlayError as exc:
-        logger.warning("Google Play series unavailable: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        _warn("Google Play", f"series unavailable: {exc}")
 
     series: list[SeriesPoint] = []
     for start, end in windows:
@@ -86,16 +98,16 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
         apple_revenue = apple.fetch_apple_revenue(
             period, primary_start, primary_end, apple_skus=config.apple_skus
         )
-    except apple.AppleStoreError as exc:
-        logger.warning("Apple primary window failed: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        _warn("App Store Connect", f"primary window failed: {exc}")
         apple_revenue = series[-1].apple_revenue if series else 0.0
 
     try:
         google_revenue = google_play.fetch_google_revenue(
             primary_start, primary_end, package_names=config.google_package_names
         )
-    except google_play.GooglePlayError as exc:
-        logger.warning("Google Play primary window failed: %s", exc)
+    except Exception as exc:  # noqa: BLE001
+        _warn("Google Play", f"primary window failed: {exc}")
         google_revenue = series[-1].google_revenue if series else 0.0
 
     return RevenueSnapshot(

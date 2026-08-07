@@ -41,7 +41,12 @@ def create_asc_token(issuer_id: str, key_id: str, private_key: str, lifetime_sec
         "aud": "appstoreconnect-v1",
     }
     headers = {"alg": "ES256", "kid": key_id, "typ": "JWT"}
-    token = jwt.encode(payload, _normalize_private_key(private_key), algorithm="ES256", headers=headers)
+    try:
+        token = jwt.encode(
+            payload, _normalize_private_key(private_key), algorithm="ES256", headers=headers
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise AppleStoreError(f"Failed to create App Store Connect JWT: {exc}") from exc
     if isinstance(token, bytes):
         return token.decode("utf-8")
     return token
@@ -71,12 +76,15 @@ def download_sales_report(
         "filter[version]": "1_0",
     }
     http = session or requests.Session()
-    response = http.get(
-        "https://api.appstoreconnect.apple.com/v1/salesReports",
-        headers={"Authorization": f"Bearer {auth}", "Accept": "application/a-gzip"},
-        params=params,
-        timeout=120,
-    )
+    try:
+        response = http.get(
+            "https://api.appstoreconnect.apple.com/v1/salesReports",
+            headers={"Authorization": f"Bearer {auth}", "Accept": "application/a-gzip"},
+            params=params,
+            timeout=120,
+        )
+    except requests.RequestException as exc:
+        raise AppleStoreError(f"App Store Connect request failed: {exc}") from exc
     if response.status_code == 404:
         return []
     if response.status_code != 200:
@@ -135,10 +143,15 @@ def fetch_apple_daily_series(
     from x_mrr_banner.dates import daterange
 
     result: dict[date, float] = {}
+    errors: list[AppleStoreError] = []
     for day in daterange(start, end):
         try:
             rows = download_sales_report(period="daily", window_start=day, window_end=day)
             result[day] = sum_apple_proceeds(rows, apple_skus=apple_skus)
-        except AppleStoreError:
+        except AppleStoreError as exc:
+            errors.append(exc)
             result[day] = 0.0
+    # Auth/config failures hit every day; surface one error so callers can warn + fall back.
+    if errors and len(errors) == len(result):
+        raise AppleStoreError(str(errors[0])) from errors[0]
     return result

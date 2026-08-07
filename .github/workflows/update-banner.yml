@@ -2,15 +2,10 @@ name: Update X banner
 
 on:
   schedule:
-    # Monthly on the 1st at 06:00 UTC
+    # Monthly on the 1st at 06:00 UTC (previous full calendar month)
     - cron: "0 6 1 * *"
   workflow_dispatch:
     inputs:
-      force:
-        description: Run even if monthly is disabled in config.yaml
-        required: false
-        type: boolean
-        default: false
       dry_run:
         description: Compose banner but skip X upload
         required: false
@@ -49,10 +44,7 @@ jobs:
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         run: |
-          ARGS=(update --period monthly)
-          if [ "${{ inputs.force }}" = "true" ]; then
-            ARGS+=(--force)
-          fi
+          ARGS=(update)
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS+=(--dry-run)
           fi

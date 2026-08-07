@@ -1,9 +1,4 @@
-# Monthly schedule for the GitHub Action (previous full calendar month).
-# When false, the Action exits successfully without fetching or uploading.
-schedules:
-  monthly: true
-
-# When false, crons/update still fetch + compose the banner (and CI uploads an
+# When false, update still fetch + compose the banner (and CI uploads an
 # artifact) but skip calling the X API. Set true once X credentials are ready.
 upload_to_x: true
 

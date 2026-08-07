@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import os
 import zipfile
 from datetime import date, datetime
@@ -13,6 +14,8 @@ from google.cloud import storage
 from google.oauth2 import service_account
 
 from x_mrr_banner.dates import daterange
+
+logger = logging.getLogger(__name__)
 
 
 class GooglePlayError(RuntimeError):
@@ -46,13 +49,18 @@ def _load_service_account_info() -> dict[str, Any]:
 
 
 def _storage_client() -> storage.Client:
-    info = _load_service_account_info()
-    credentials = service_account.Credentials.from_service_account_info(
-        info,
-        scopes=["https://www.googleapis.com/auth/devstorage.read_only"],
-    )
-    project = info.get("project_id")
-    return storage.Client(project=project, credentials=credentials)
+    try:
+        info = _load_service_account_info()
+        credentials = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=["https://www.googleapis.com/auth/devstorage.read_only"],
+        )
+        project = info.get("project_id")
+        return storage.Client(project=project, credentials=credentials)
+    except GooglePlayError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise GooglePlayError(f"Failed to initialize Google Play storage client: {exc}") from exc
 
 
 def _parse_play_date(value: str) -> date | None:
@@ -108,9 +116,16 @@ def _download_sales_zip(bucket_name: str, yyyymm: str) -> bytes | None:
     bucket = client.bucket(bucket_name)
     blob_name = f"sales/salesreport_{yyyymm}.zip"
     blob = bucket.blob(blob_name)
-    if not blob.exists():
-        return None
-    return blob.download_as_bytes()
+    try:
+        if not blob.exists():
+            return None
+        return blob.download_as_bytes()
+    except GooglePlayError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — surface GCS/auth failures as store errors
+        raise GooglePlayError(
+            f"Failed to read gs://{bucket_name}/{blob_name}: {exc}"
+        ) from exc
 
 
 def _rows_from_zip(payload: bytes) -> list[dict[str, str]]:
@@ -164,11 +179,26 @@ def _row_amount(row: dict[str, str]) -> float:
 def load_play_sales_rows(start: date, end: date) -> list[dict[str, str]]:
     bucket = _require_env("GOOGLE_PLAY_REPORTS_BUCKET")
     rows: list[dict[str, str]] = []
+    errors: list[str] = []
     for yyyymm in _month_keys(start, end):
-        payload = _download_sales_zip(bucket, yyyymm)
+        try:
+            payload = _download_sales_zip(bucket, yyyymm)
+        except GooglePlayError as exc:
+            errors.append(str(exc))
+            continue
         if payload is None:
             continue
         rows.extend(_rows_from_zip(payload))
+    if errors and not rows:
+        raise GooglePlayError("; ".join(errors[:3]))
+    if errors:
+        msg = (
+            f"skipped {len(errors)} month(s) due to download errors; "
+            f"continuing with partial data. First error: {errors[0]}"
+        )
+        logger.warning("Google Play: %s", msg)
+        safe = msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::warning title=Google Play::{safe}", flush=True)
     return rows
 
 

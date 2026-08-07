@@ -42,16 +42,10 @@ BANNER_OUTPUT_PATH = OUTPUT_DIR / "banner.png"
 
 @dataclass
 class AppConfig:
-    schedules: dict[str, bool] = field(default_factory=lambda: {"monthly": True})
     upload_to_x: bool = False
     currency: str = "USD"
     apple_skus: list[str] = field(default_factory=list)
     google_package_names: list[str] = field(default_factory=list)
-
-    def is_period_enabled(self, period: Period) -> bool:
-        if period != "monthly":
-            return False
-        return bool(self.schedules.get("monthly", True))
 
 
 @dataclass
@@ -110,11 +104,7 @@ def load_config(path: Path | None = None) -> AppConfig:
                 raise ValueError(f"Config at {config_path} must be a mapping")
             raw = loaded
 
-    schedules = raw.get("schedules") or {}
     return AppConfig(
-        schedules={
-            "monthly": bool(schedules.get("monthly", True)),
-        },
         upload_to_x=bool(raw.get("upload_to_x", False)),
         currency=str(raw.get("currency") or "USD"),
         apple_skus=[str(item) for item in (raw.get("apple_skus") or [])],

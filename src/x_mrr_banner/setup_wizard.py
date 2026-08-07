@@ -619,16 +619,8 @@ def _load_config_raw() -> dict:
 
 
 def update_config_from_prompts() -> None:
-    _print_header("Schedule & upload preferences (config.yaml)")
+    _print_header("Upload preferences (config.yaml)")
     raw = _load_config_raw()
-    schedules = dict(raw.get("schedules") or {})
-    ui.info("Only the monthly schedule is supported for now (previous full calendar month).")
-    schedules = {
-        "monthly": _prompt_yes_no(
-            "Enable monthly GitHub Action runs?",
-            default=bool(schedules.get("monthly", True)),
-        )
-    }
     upload = _prompt_yes_no(
         "Upload composed banners to X automatically?",
         default=bool(raw.get("upload_to_x", False)),
@@ -636,7 +628,6 @@ def update_config_from_prompts() -> None:
     currency = input(
         ui.prompt(f"Display currency [{raw.get('currency') or 'USD'}]: ")
     ).strip() or str(raw.get("currency") or "USD")
-    raw["schedules"] = schedules
     raw["upload_to_x"] = upload
     raw["currency"] = currency
     raw.setdefault("apple_skus", [])
@@ -644,12 +635,7 @@ def update_config_from_prompts() -> None:
 
     # Preserve comments by rewriting a clean documented file.
     content = (
-        "# Monthly schedule for the GitHub Action (previous full calendar month).\n"
-        "# When false, the Action exits successfully without fetching or uploading.\n"
-        "schedules:\n"
-        f"  monthly: {'true' if schedules.get('monthly') else 'false'}\n"
-        "\n"
-        "# When false, crons/update still fetch + compose the banner (and CI uploads an\n"
+        "# When false, update still fetch + compose the banner (and CI uploads an\n"
         "# artifact) but skip calling the X API. Set true once X credentials are ready.\n"
         f"upload_to_x: {'true' if upload else 'false'}\n"
         "\n"

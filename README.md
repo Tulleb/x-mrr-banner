@@ -43,7 +43,7 @@ python -m x_mrr_banner setup   # --local-only / --github-only / --skip-config
 ```bash
 python -m x_mrr_banner setup
 python -m x_mrr_banner update
-python -m x_mrr_banner update --dry-run --force
+python -m x_mrr_banner update --dry-run
 python -m x_mrr_banner update --upload
 python -m x_mrr_banner generate_template
 ```
@@ -54,12 +54,11 @@ python -m x_mrr_banner generate_template
 
 | Key | Purpose |
 | ----- | --------- |
-| `schedules.monthly` | `false` = monthly cron / dispatch no-ops |
 | `upload_to_x` | `false` = compose only (no X API) |
 | `currency` | Display label |
 | `apple_skus` / `google_package_names` | Optional filters (empty = all) |
 
-Only the **monthly** schedule is supported for now (previous full calendar month). Template prompt notes: [`docs/TEMPLATE.md`](docs/TEMPLATE.md).
+The Action always updates the **previous full calendar month** (cron on the 1st, or manual dispatch). Template prompt notes: [`docs/TEMPLATE.md`](docs/TEMPLATE.md).
 
 ## Secrets
 
@@ -74,6 +73,6 @@ See [`.env.example`](.env.example). Never commit `.env`.
 
 ## How it works
 
-1. Monthly cron (1st of month) / workflow dispatch runs (skip if `schedules.monthly` is false).
+1. Monthly cron (1st of month UTC) or manual workflow dispatch runs `update`.
 2. Requires committed `assets/template/{background.png,layout.yaml}`.
 3. Fetches Apple + Google revenues for the previous full month, overlays text/numbers/chart, optionally uploads via `POST https://api.x.com/1.1/account/update_profile_banner.json`.
