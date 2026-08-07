@@ -77,23 +77,42 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
 }
 
 Write-Host ""
-Write-Host "→ Starting interactive setup wizard"
-python -m x_mrr_banner setup @args
 
-Write-Host ""
-Write-Host "→ First banner generation"
-Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
-Write-Host "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
-$ans = Read-Host "Generate the first banner now? [Y/n]"
-if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
+$skipSetup = $false
+python -c "from x_mrr_banner.setup_wizard import offer_skip_setup_to_banner; raise SystemExit(0 if offer_skip_setup_to_banner() else 1)"
+if ($LASTEXITCODE -eq 0) {
+  $skipSetup = $true
+}
+
+if ($skipSetup) {
+  Write-Host ""
+  Write-Host "→ Banner generation"
+  Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+  Write-Host "Revenue APIs + OpenAI can take a minute — progress logs appear next."
   Write-Host "→ Running update --dry-run…"
   python -m x_mrr_banner update --dry-run
   Write-Host ""
   Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
 } else {
   Write-Host ""
-  Write-Host "✓ Skipped banner generation."
-  Write-Host "  • Generate later:  python -m x_mrr_banner update --dry-run"
+  Write-Host "→ Starting interactive setup wizard"
+  python -m x_mrr_banner setup @args
+
+  Write-Host ""
+  Write-Host "→ First banner generation"
+  Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+  Write-Host "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
+  $ans = Read-Host "Generate the first banner now? [Y/n]"
+  if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
+    Write-Host "→ Running update --dry-run…"
+    python -m x_mrr_banner update --dry-run
+    Write-Host ""
+    Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+  } else {
+    Write-Host ""
+    Write-Host "✓ Skipped banner generation."
+    Write-Host "  • Generate later:  python -m x_mrr_banner update --dry-run"
+  }
 }
 Write-Host "  • Commit config.yaml and push when ready"
 Write-Host "  • GitHub → Actions → Update X banner → Run workflow"

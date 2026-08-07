@@ -12,7 +12,12 @@ from typing import Callable
 
 import yaml
 
-from x_mrr_banner.config import DEFAULT_CONFIG_PATH, REPO_ROOT
+from x_mrr_banner.config import (
+    DEFAULT_CONFIG_PATH,
+    REPO_ROOT,
+    load_config,
+    require_banner_config,
+)
 from x_mrr_banner.prerequisites import (
     ensure_gh_authenticated,
     prepare_environment,
@@ -1295,6 +1300,48 @@ def collect_secrets_interactively(
         raise SystemExit(130) from None
 
     return values
+
+
+def mandatory_env_complete(values: dict[str, str] | None = None) -> bool:
+    """True when every non-optional credential section is filled in .env."""
+    existing = values if values is not None else _parse_env_file(ENV_PATH)
+    if not existing:
+        return False
+    for section in _sections(include_x=True, include_openai=True):
+        if section.optional:
+            continue
+        if not _section_is_complete(section, existing):
+            return False
+    return True
+
+
+def banner_config_ready() -> bool:
+    """True when config.yaml has the prefs required to generate a banner."""
+    try:
+        require_banner_config(load_config())
+    except (OSError, ValueError, TypeError):
+        return False
+    return True
+
+
+def can_skip_setup_to_banner() -> bool:
+    """True when .env mandatories + banner prefs are already in place."""
+    return mandatory_env_complete() and banner_config_ready()
+
+
+def offer_skip_setup_to_banner() -> bool:
+    """
+    If setup can be skipped, ask the user. Return True to go straight to banner gen.
+    """
+    if not can_skip_setup_to_banner():
+        return False
+    _print_header("Already configured")
+    ui.ok(f"Mandatory credentials found in {ENV_PATH.name}")
+    ui.ok("Banner preferences look ready in config.yaml")
+    return _prompt_yes_no(
+        "Skip setup and generate the banner now?",
+        default=True,
+    )
 
 
 def run_setup(

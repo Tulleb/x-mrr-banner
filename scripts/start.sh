@@ -138,6 +138,30 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
+run_banner() {
+  echo
+  step "Banner generation"
+  info "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+  info "Revenue APIs + OpenAI can take a minute — progress logs appear next."
+  step "Running update --dry-run…"
+  python -m x_mrr_banner update --dry-run
+  echo
+  ok "Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+}
+
+finish_tips() {
+  bullet "Commit config.yaml and push when ready"
+  bullet "GitHub → Actions → Update X banner → Run workflow"
+}
+
+echo
+# When credentials + config are already complete, offer to skip the wizard.
+if python -c 'from x_mrr_banner.setup_wizard import offer_skip_setup_to_banner; raise SystemExit(0 if offer_skip_setup_to_banner() else 1)'; then
+  run_banner
+  finish_tips
+  exit 0
+fi
+
 echo
 step "Starting interactive setup wizard"
 info "API keys → .env + GitHub Actions secrets"
@@ -161,5 +185,4 @@ else
   ok "Skipped banner generation."
   bullet "Generate later:  python -m x_mrr_banner update --dry-run"
 fi
-bullet "Commit config.yaml and push when ready"
-bullet "GitHub → Actions → Update X banner → Run workflow"
+finish_tips
