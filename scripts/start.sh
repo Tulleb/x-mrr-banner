@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # --- colors (disabled when not a TTY, or NO_COLOR is set) ---
-if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+if [[ -t 1 && -z "${NO_COLOR:-}" ]] || [[ -n "${FORCE_COLOR:-}" && "${FORCE_COLOR}" != "0" ]]; then
   C_RESET=$'\033[0m'
   C_BOLD=$'\033[1m'
   C_DIM=$'\033[2m'
@@ -19,9 +19,15 @@ if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   C_GREEN=$'\033[32m'
   C_YELLOW=$'\033[33m'
   C_BLUE=$'\033[34m'
+  C_MAGENTA=$'\033[35m'
   C_CYAN=$'\033[36m'
+  C_BRIGHT_GREEN=$'\033[92m'
+  C_BRIGHT_YELLOW=$'\033[93m'
+  C_BRIGHT_MAGENTA=$'\033[95m'
+  C_BRIGHT_CYAN=$'\033[96m'
 else
-  C_RESET="" C_BOLD="" C_DIM="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_CYAN=""
+  C_RESET="" C_BOLD="" C_DIM="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_MAGENTA="" C_CYAN=""
+  C_BRIGHT_GREEN="" C_BRIGHT_YELLOW="" C_BRIGHT_MAGENTA="" C_BRIGHT_CYAN=""
 fi
 
 header()  { printf '\n%s%s%s\n' "$C_BOLD$C_CYAN" "============================================================" "$C_RESET"
@@ -173,7 +179,15 @@ echo
 step "First banner generation"
 info "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
 info "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
-read -r -p "$(printf '%sGenerate the first banner now? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
+echo
+printf '%s%s%s\n' "$C_BOLD$C_BRIGHT_MAGENTA" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" "$C_RESET"
+printf '%s🎨✨  %sGenerate the first banner now?%s  %s[Y/n]%s  %s🚀%s ' \
+  "$C_BOLD$C_BRIGHT_YELLOW" \
+  "$C_BOLD$C_BRIGHT_GREEN" "$C_RESET" \
+  "$C_BOLD$C_BRIGHT_CYAN" "$C_RESET" \
+  "$C_BOLD$C_BRIGHT_MAGENTA" "$C_RESET"
+read -r ans
+printf '%s%s%s\n' "$C_BOLD$C_BRIGHT_MAGENTA" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" "$C_RESET"
 ans=${ans:-Y}
 if [[ "$ans" =~ ^[Yy]$ ]]; then
   step "Running update --dry-run…"

@@ -823,11 +823,11 @@ _DEFAULT_WATERMARK = {
 
 
 def _seed_config_state(raw: dict) -> dict:
-    upload = _existing_upload(raw)
     apps = _existing_apps(raw)
+    currency = str(raw.get("currency") or "USD").strip() or "USD"
     return {
-        "upload_to_x": upload[0] if upload else False,
-        "currency": upload[1] if upload else "USD",
+        "upload_to_x": bool(raw.get("upload_to_x", False)),
+        "currency": currency,
         "challenge": _existing_challenge(raw) or dict(_DEFAULT_CHALLENGE),
         "content": _existing_content(raw) or dict(_DEFAULT_CONTENT),
         "theme": _existing_theme(raw) or dict(_DEFAULT_THEME),
@@ -850,13 +850,18 @@ def _persist_config_state(state: dict, *, reason: str) -> None:
     ui.ok(f"Saved {DEFAULT_CONFIG_PATH.relative_to(REPO_ROOT)} ({reason})")
 
 
-def _existing_upload(raw: dict) -> tuple[bool, str] | None:
-    if "upload_to_x" not in raw:
-        return None
-    currency = str(raw.get("currency") or "").strip()
-    if not currency:
-        return None
-    return bool(raw.get("upload_to_x", False)), currency
+def _persist_upload_to_x(upload: bool) -> None:
+    """Update only upload_to_x in config.yaml (used from the X credentials step)."""
+    state = _seed_config_state(_load_config_raw())
+    state["upload_to_x"] = upload
+    _persist_config_state(state, reason="upload_to_x")
+
+
+def _prompt_upload_to_x(*, default: bool) -> bool:
+    return _prompt_yes_no(
+        "Upload generated banners to X automatically? (sets upload_to_x in config.yaml)",
+        default=default,
+    )
 
 
 def _existing_challenge(raw: dict) -> dict | None:
@@ -940,42 +945,21 @@ def _existing_apps(raw: dict) -> list[dict] | None:
     ]
 
 
-def _collect_upload_prefs(raw: dict, *, progress: _WizardProgress | None = None) -> tuple[bool, str]:
-    (progress.header if progress else _print_header)("Upload preferences (config.yaml)")
-    existing = _existing_upload(raw)
-    if existing is not None:
-        upload_existing, currency_existing = existing
-        ui.ok(
-            f"Current values: upload_to_x={str(upload_existing).lower()}, "
-            f"currency={currency_existing}"
-        )
-        if not _prompt_yes_no("Change current values?", default=False):
-            _advance_after_step("Keeping Upload preferences — nice work!")
-            return upload_existing, currency_existing
-        ui.info("Updating Upload preferences.")
-
-    currency_existing = existing[1] if existing else ""
-    upload = _prompt_yes_no(
-        "Upload generated banners to X automatically?",
-        default=bool(raw.get("upload_to_x", False)),
-    )
-    currency = _prompt_text("Display currency", currency_existing or "USD")
-    _advance_after_step("Upload preferences saved — great job!")
-    return upload, currency
-
-
-def _collect_challenge(raw: dict, *, progress: _WizardProgress | None = None) -> dict:
+def _collect_challenge(
+    raw: dict, *, progress: _WizardProgress | None = None
+) -> tuple[dict, str]:
     (progress.header if progress else _print_header)("Challenge preferences")
     existing = _existing_challenge(raw)
+    currency_existing = str(raw.get("currency") or "USD").strip() or "USD"
     if existing is not None:
         ui.ok(
             f"Current values: headline={existing['headline']!r}, "
             f"{existing['start_date']} → {existing['deadline']}, "
-            f"target_mrr={existing['target_mrr']}"
+            f"target_mrr={existing['target_mrr']}, currency={currency_existing}"
         )
         if not _prompt_yes_no("Change current values?", default=False):
             _advance_after_step("Keeping Challenge preferences — nice work!")
-            return existing
+            return existing, currency_existing
         ui.info("Updating Challenge preferences.")
 
     defaults = existing or {}
@@ -1005,8 +989,9 @@ def _collect_challenge(raw: dict, *, progress: _WizardProgress | None = None) ->
             float(defaults.get("target_mrr") or 10000),
         ),
     }
+    currency = _prompt_text("Display currency", currency_existing)
     _advance_after_step("Challenge preferences saved — great job!")
-    return challenge
+    return challenge, currency
 
 
 def _collect_content(
@@ -1110,33 +1095,40 @@ def _collect_theme(raw: dict, *, progress: _WizardProgress | None = None) -> dic
     return theme
 
 
-def _confirm_watermark_removal() -> bool:
-    """Ask for a small reciprocity gesture before disabling the attribution watermark."""
-    ui.info("Removing the watermark is fine — a small gesture in return would mean a lot:")
-    ui.bullet(f"Follow on X: {ui.url(WATERMARK_AUTHOR_X)}")
-    ui.bullet(f'Add to your X bio: "{WATERMARK_REPO_BIO}"')
-    ui.bullet(f"Tip Bitcoin: {WATERMARK_BTC}")
-    gesture = _prompt_choice(
-        "Which gesture did you (or will you) make?",
-        ("follow", "bio", "tip", "keep_watermark"),
-        "keep_watermark",
+def _show_watermark_removal_disclaimer() -> None:
+    """Honor-system note after the user opts out of the attribution watermark."""
+    s = ui._s()
+    paint = ui._paint
+    print()
+    print(
+        f"  {paint('✨💖', s.bold)} "
+        f"{paint('Watermark off!', s.bold, s.magenta)} "
+        f"{paint('If you can spare a small gesture, it would mean the world 🙏', s.bold, s.yellow)} "
+        f"{paint('🚀', s.bold)}"
     )
-    if gesture == "keep_watermark":
-        ui.info("Keeping the watermark — thank you!")
-        return False
-    labels = {
-        "follow": f"follow {WATERMARK_AUTHOR_X}",
-        "bio": "share the repo link in your X bio",
-        "tip": "tip on Bitcoin",
-    }
-    if not _prompt_yes_no(
-        f"Confirm you chose to {labels[gesture]} (honor system)?",
-        default=True,
-    ):
-        ui.info("Keeping the watermark — thank you!")
-        return False
-    ui.ok("Watermark disabled — thank you for the support!")
-    return True
+    print(
+        f"  {paint('🐦', s.bold)} "
+        f"{paint('Follow on X:', s.bold, s.cyan)} "
+        f"{paint(WATERMARK_AUTHOR_X, s.bold, s.blue)} "
+        f"{paint('← desperately need the visibility!', s.dim)}"
+    )
+    print(
+        f"  {paint('📣', s.bold)} "
+        f"{paint('Add to your X bio:', s.bold, s.green)} "
+        f"{paint(f'\"{WATERMARK_REPO_BIO}\"', s.bold, s.white)}"
+    )
+    print(
+        f"  {paint('₿', s.bold, s.yellow)} "
+        f"{paint('Tip Bitcoin:', s.bold, s.yellow)} "
+        f"{paint(WATERMARK_BTC, s.bold, s.magenta)} "
+        f"{paint('🧡', s.bold)}"
+    )
+    print(
+        f"  {paint('🙏💛✨', s.bold)} "
+        f"{paint('Thank you — you are awesome!', s.bold, s.green)} "
+        f"{paint('🎉', s.bold)}"
+    )
+    print()
 
 
 def _collect_watermark(raw: dict, *, progress: _WizardProgress | None = None) -> dict:
@@ -1154,11 +1146,10 @@ def _collect_watermark(raw: dict, *, progress: _WizardProgress | None = None) ->
     defaults = existing or dict(_DEFAULT_WATERMARK)
     enabled = _prompt_yes_no(
         f"Show attribution watermark on the banner? (\"{WATERMARK_TEXT}\")",
-        default=bool(defaults.get("enabled", True)),
+        default=True,
     )
     if not enabled:
-        if not _confirm_watermark_removal():
-            enabled = True
+        _show_watermark_removal_disclaimer()
 
     position = str(defaults.get("position") or "top_right")
     if enabled:
@@ -1281,13 +1272,9 @@ def update_config_from_prompts(*, progress: _WizardProgress | None = None) -> No
     raw = _load_config_raw()
     state = _seed_config_state(raw)
 
-    upload, currency = _collect_upload_prefs(raw, progress=progress)
-    state["upload_to_x"] = upload
-    state["currency"] = currency
-    _persist_config_state(state, reason="upload preferences")
-
-    challenge = _collect_challenge(raw, progress=progress)
+    challenge, currency = _collect_challenge(raw, progress=progress)
     state["challenge"] = challenge
+    state["currency"] = currency
     _persist_config_state(state, reason="challenge preferences")
 
     content = _collect_content(raw, challenge, progress=progress)
@@ -1425,6 +1412,11 @@ def collect_secrets_interactively(
                     _advance_after_step(f"{section.name} skipped — all good!")
                     continue
 
+            if section.name.startswith("X"):
+                upload = _prompt_upload_to_x(
+                    default=bool(_load_config_raw().get("upload_to_x", True)),
+                )
+                _persist_upload_to_x(upload)
             _print_intro(section.intro)
             if section.name.startswith("X"):
                 _maybe_show_x_use_case_text()
@@ -1504,7 +1496,7 @@ def run_setup(
         return 0
 
     sections = _sections(include_x=True, include_openai=True)
-    config_steps = 0 if skip_config else 6
+    config_steps = 0 if skip_config else 5
     progress = _WizardProgress(len(sections) + config_steps)
 
     values = collect_secrets_interactively(existing, progress=progress)

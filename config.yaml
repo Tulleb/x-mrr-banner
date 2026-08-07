@@ -37,7 +37,7 @@ theme:
 # position: top_right (default) | bottom_center
 watermark:
   enabled: true
-  position: top_right
+  position: bottom_center
 
 # Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)
 apps:

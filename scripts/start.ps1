@@ -102,7 +102,15 @@ if ($skipSetup) {
   Write-Host "→ First banner generation"
   Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
   Write-Host "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
-  $ans = Read-Host "Generate the first banner now? [Y/n]"
+  Write-Host ""
+  Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Magenta
+  Write-Host -NoNewline "🎨✨  " -ForegroundColor Yellow
+  Write-Host -NoNewline "Generate the first banner now?" -ForegroundColor Green
+  Write-Host -NoNewline "  " 
+  Write-Host -NoNewline "[Y/n]" -ForegroundColor Cyan
+  Write-Host -NoNewline "  🚀 " -ForegroundColor Magenta
+  $ans = Read-Host
+  Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Magenta
   if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
     Write-Host "→ Running update --dry-run…"
     python -m x_mrr_banner update --dry-run
