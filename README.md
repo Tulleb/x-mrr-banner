@@ -81,3 +81,20 @@ See [`.env.example`](.env.example). Never commit `.env`.
 2. Fetches Apple + Google revenues for the previous full month.
 3. Renders `inputs/BANNER.md.j2` with live data + `config.yaml` preferences.
 4. OpenAI generates the final banner; optionally uploads via `POST https://api.x.com/1.1/account/update_profile_banner.json`.
+
+## Removing the watermark
+
+Banners include a small attribution overlay by default (`watermark` in [`config.yaml`](config.yaml)):
+
+```text
+Made with ❤️ by @Tulleb
+github.com/Tulleb/x-mrr-banner
+```
+
+You can turn it off (`watermark.enabled: false`) during setup or in config — totally fine. If you do, a small gesture would mean a lot:
+
+- **Follow on X:** [@tulleb](https://x.com/tulleb) (I desperately need the visibility)
+- **Share the project** by adding this to your X bio: `Banner made with https://github.com/Tulleb/x-mrr-banner/`
+- **Tip Bitcoin:** `bc1q8esm8hrux2zw02vhlyk9xp20pz6mrrjxdxufuf`
+
+Thank you — you are awesome.
