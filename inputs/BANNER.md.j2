@@ -1,12 +1,16 @@
 # X MRR Banner Generation Specification
 
-Generate a complete X profile banner containing the real business data below.
+Generate one complete, publication-ready X profile banner using the exact business data supplied below.
 
-The output must be the FINAL banner layout (text, status card, progress bar).
-App icon slots are solid pure red ({{ icon_marker_hex }}) squares — real app logos replace them afterward.
-Draw App Store and Play Store badges yourself in the image (not chroma placeholders).
-Do not leave other placeholders visible.
-All supplied values must be rendered accurately.
+The result must already contain all visible text, financial values, store indicators, status UI, decorative artwork, and the progress bar.
+
+Real app icons and the attribution watermark are added programmatically AFTER image generation.
+
+For app icons only, generate solid pure-red chroma markers using {{ icon_marker_hex }}. These markers will later be detected and replaced with the real app icons.
+
+Do not leave any other placeholders visible.
+
+Do not add any content that is not explicitly requested in this specification.
 
 ## Canvas
 
@@ -14,11 +18,17 @@ All supplied values must be rendered accurately.
 - Height: {{ banner.height }} px
 - Aspect ratio: {{ banner.aspect_ratio }}
 - Platform: X profile banner
-- Compose the full layout for a wide 3:1 banner ({{ banner.width }}×{{ banner.height }}).
-- Keep all text and UI inside a safe margin (~4% inset from every edge).
-- Do not place critical text in the extreme top or bottom strips.
+- Compose specifically for a wide 3:1 banner.
+- Use approximately 4% safe margins from the outer edges.
+- Keep all important text and UI comfortably inside the safe area.
+- Do not place critical text against the extreme top or bottom edges.
+- Preserve enough breathing room around every major content block.
 
-## Challenge
+## Context
+
+The following information provides context for the challenge.
+
+Do NOT render these values unless they are explicitly included in the Visible Content section.
 
 - Challenge headline: {{ challenge.headline }}
 - Start date: {{ challenge.start_date }}
@@ -29,50 +39,357 @@ All supplied values must be rendered accurately.
 - Current MRR: {{ revenue.current_mrr_formatted }}
 - Progress toward target: {{ revenue.target_progress_percent }}%
 
-## Apps
+## Visible Content
 
-{% for app in apps %}
-### {{ app.name }}
+Render ONLY the content explicitly defined in this section.
 
-- Current MRR: {{ app.current_mrr_formatted }}
-- App Store MRR: {{ app.apple_mrr_formatted }}
-- Play Store MRR: {{ app.google_mrr_formatted }}
+### Header
 
-{% endfor %}
+Small uppercase top label:
 
-## Text to Render
+`{{ content.top_label }}`
 
-Render the following text clearly and exactly.
+Large dominant headline:
 
-### Top Label
+`{{ content.headline }}`
 
-{{ content.top_label }}
+Subtitle:
 
-### Main Headline
+`{{ content.subheadline }}`
 
-{{ content.headline }}
+The headline must be the largest and most visually dominant element in the banner.
 
-### Subheadline
-
-{{ content.subheadline }}
-
-### Month
-
-{{ challenge.month_label }}
-
-### Current MRR
-
-{{ content.revenue_label }}
+### Apps
 
 {% if apps %}
-### Apps (render beside each red app-icon marker)
 
-Do NOT write the words Apple, Google, App Store, or Play Store.
-Use small recognizable App Store and Play Store icons next to each store MRR amount.
+Section label:
+
+`{{ content.apps_label }}`
 
 {% for app in apps %}
-- {{ app.name }} — total {{ app.current_mrr_formatted }} | [App Store icon] {{ app.apple_mrr_formatted }} | [Play Store icon] {{ app.google_mrr_formatted }}
+
+#### App {{ loop.index }} — {{ app.name }}
+
+Render one compact app block containing:
+
+- one pure-red rounded-square app icon marker using {{ icon_marker_hex }}
+- app name exactly: `{{ app.name }}`
+- total MRR exactly: `{{ app.current_mrr_formatted }}`
+
+Under the app name and total MRR, render the store split:
+
+- small recognizable App Store icon followed by `{{ app.apple_mrr_formatted }}`
+- small recognizable Play Store icon followed by `{{ app.google_mrr_formatted }}`
+
 {% endfor %}
+
+Do NOT write any of these words in the visible app rows:
+
+- Apple
+- Google
+- App Store
+- Play Store
+- Total
+
+The store icons themselves should identify the platforms.
+
+{% if apps|length <= 3 %}
+
+Arrange all {{ apps|length }} app block(s) on **one horizontal row** under the section label (not stacked vertically). Leave comfortable gaps between app blocks. Do not stretch them into separate cards.
+
+{% else %}
+
+Arrange app blocks in a compact horizontal wrap: prefer a single row when they fit; only wrap to a second row if necessary. Do not stack every app in a tall vertical list.
+
+{% endif %}
+
+{% endif %}
+
+### Status Card
+
+Create one minimal dark rounded status card containing exactly two rows.
+
+#### Month Row
+
+Render:
+
+- small calendar outline icon using the accent color
+- text exactly: `{{ challenge.month_label }}`
+
+Emphasize the current month number using the accent color.
+
+Render the total number with lower visual emphasis or reduced opacity.
+
+#### MRR Row
+
+Below one thin divider, render:
+
+- small coin or currency outline icon
+- text exactly: `Current MRR: {{ content.revenue_label }}`
+
+Emphasize `{{ content.revenue_label }}` using the accent color.
+
+Do NOT add any other information inside this card.
+
+Specifically, do not add:
+
+- start date
+- deadline
+- calendar month name
+- current-period labels
+- progress percentage
+- target MRR
+- secondary statistics
+
+### Progress Bar
+
+At the bottom of the banner, render one long horizontal progress bar.
+
+Start label:
+
+`{{ challenge.start_mrr_formatted }}`
+
+End label:
+
+`{{ challenge.target_mrr_formatted }}`
+
+Progress label:
+
+`{{ revenue.target_progress_percent }}%`
+
+The visual fill length and circular marker position must correspond to exactly {{ revenue.target_progress_percent }}% of the distance from the starting value to the target value.
+
+Place the percentage immediately below the progress marker.
+
+When progress is very small, keep the percentage slightly to the right of the starting label so both labels remain readable.
+
+Never center the percentage on the full track unless the actual progress position requires it.
+
+Do not draw any revenue history chart.
+
+## Layout
+
+Follow this approximate composition.
+
+### Left Main Region
+
+Use approximately 58–62% of the usable banner width.
+
+Arrange vertically:
+
+1. top label
+2. main headline
+3. subtitle
+4. apps section
+
+Use generous negative space around the headline.
+
+Do not turn the entire left region into a dashboard.
+
+### Header Hierarchy
+
+Use approximately this visual hierarchy:
+
+- top label: small
+- headline: very large, bold, condensed or semi-condensed
+- subtitle: medium
+- apps section label: small to medium
+- app information: compact
+
+The headline should visually dominate all other elements.
+
+### Apps Region
+
+Keep the app section compact and easy to scan.
+
+Preferred visual structure for each app:
+
+`[APP ICON]  App Name    MRR`
+
+Underneath:
+
+`[Store icon] amount   |   [Store icon] amount`
+
+Do not put individual apps inside separate large cards.
+
+{% if apps and apps|length <= 3 %}
+
+Place every app block on a **single horizontal row** beneath the apps section label.
+
+Use the unused width between the left content and the status card — do not leave a tall empty column by stacking apps vertically.
+
+Keep even horizontal spacing between app blocks.
+
+{% elif apps %}
+
+Prefer a horizontal row of app blocks. Wrap to a second row only if a single row would become cramped.
+
+{% else %}
+
+(No apps section.)
+
+{% endif %}
+
+### Right Status Region
+
+Use approximately 28–32% of the usable banner width.
+
+Place the status card toward the right side of the banner.
+
+Vertically center it relative to the main information area.
+
+The card should feel secondary to the main headline.
+
+Do not make it oversized.
+
+### Bottom Progress Region
+
+Use almost the full usable banner width.
+
+The progress bar should:
+
+- span horizontally across the banner
+- remain visually simple
+- have comfortable padding above and below
+- leave enough space beneath it for its labels
+{% if watermark.enabled and watermark.position == "bottom_center" %}
+- leave the bottom-center attribution reservation unobstructed
+{% elif watermark.enabled and watermark.position == "top_right" %}
+- leave the top-right attribution reservation unobstructed
+{% endif %}
+
+## Progress Bar Style
+
+Use:
+
+- capsule or pill-shaped track
+- rounded ends
+- dark translucent track
+- subtle low-contrast border
+- filled section using a smooth accent-to-primary gradient
+- circular marker at the fill edge
+- thin light outline around the marker
+- optional subtle tick marks
+
+Do not use:
+
+- stacked bars
+- line charts
+- revenue charts
+- legends
+- fake data points
+- axes
+
+{% if apps %}
+
+## App Icon Chroma Markers
+
+Real app icons will be composited programmatically after generation.
+
+For each app, create exactly one chroma marker.
+
+Marker requirements:
+
+- target size: approximately 48 × 48 px
+- acceptable range: 42–52 px
+- rounded square
+- approximately 12 px corner radius (~25% of marker size; must match post-process mask)
+- fill exactly {{ icon_marker_hex }}
+- if {{ icon_marker_hex }} is `#FF0000`, use RGB exactly `(255, 0, 0)`
+- completely flat solid fill
+- no gradient
+- no border
+- no shadow
+- no glow
+- no texture
+- no icon
+- no glyph
+- no lettering
+- no artwork inside the marker
+
+Keep at least approximately 8 px of non-red space around every marker.
+
+The marker must remain fully visible and unobstructed.
+
+Do not place:
+
+- text over it
+- decorative lines over it
+- glow over it
+- borders over it
+- UI elements over it
+
+Pure {{ icon_marker_hex }} must not appear anywhere else in the generated image.
+
+{% endif %}
+
+## Store Icons
+
+App Store and Play Store icons are NOT post-processed.
+
+They must be drawn directly in the generated banner.
+
+For each app:
+
+- draw one small recognizable App Store icon beside the App Store MRR amount
+- draw one small recognizable Play Store icon beside the Play Store MRR amount
+- target approximately 14–20 px visual size
+- keep them clean and immediately recognizable
+- use them as compact platform indicators
+
+Do not use chroma markers for store icons.
+
+Do not write the platform names as text.
+
+## Attribution Reservation
+
+{% if watermark.enabled %}
+
+The attribution watermark is added programmatically AFTER image generation.
+
+{% if watermark.position == "bottom_center" %}
+
+Reserve a quiet area at the bottom-center of the banner for this later overlay.
+
+Keep the bottom-center attribution area:
+
+{% else %}
+
+Reserve a quiet area at the top-right of the banner for this later overlay.
+
+Keep the top-right attribution area:
+
+{% endif %}
+
+- dark
+- visually quiet
+- free of important information
+- free of strong decorative lines
+- free of strong glow
+- free of bright geometric objects
+
+The generated image itself must NOT contain:
+
+- attribution text
+- author names
+- X handles
+- GitHub handles
+- URLs
+- signatures
+- creator credits
+- watermarks
+
+Do not draw a placeholder for the watermark.
+
+Simply preserve suitable empty space.
+
+{% else %}
+
+No attribution watermark will be overlaid after generation.
+
+Do not reserve empty space for a watermark, and do not draw any attribution, credits, handles, URLs, or signatures.
+
 {% endif %}
 
 ## Visual Direction
@@ -86,142 +403,185 @@ Use small recognizable App Store and Play Store icons next to each store MRR amo
 - Text color: {{ theme.text_color }}
 - Chart color: {{ theme.chart_color }}
 
-Create a premium dark indie-founder / technology aesthetic.
+Create a premium indie-founder / technology aesthetic.
+
+The result should feel:
+
+- confident
+- modern
+- clean
+- technical
+- premium
+- understated
+- polished
+- suitable for a build-in-public founder account
+
+Keep the overall banner predominantly dark.
+
+### Background
 
 Use:
-- deep charcoal background
-- subtle technical grid
-- soft gradients
-- faint flowing curves
-- partial geometric arcs
-- restrained glow
-- subtle dotted accents
-- strong typography
+
+- deep charcoal or near-black base
+- subtle technical square grid
+- restrained soft gradients
+- faint diagonal illumination
+- very subtle colored glow
 - generous negative space
 
-Avoid:
-- excessive cyberpunk styling
-- excessive neon
-- busy patterns
-- photographic imagery
-- any pure {{ icon_marker_hex }} except the app icon markers
-- the words Apple, Google, App Store, or Play Store anywhere on the banner
+### Decorative Language
 
-## Composition
+Use restrained geometric decorations such as:
 
-Follow this structure:
+- extremely thin flowing curves
+- partial geometric circles or arcs entering from canvas edges
+- sparse dotted patterns
+- subtle angular outlines
+- soft gradient waves
+- very faint technical grid elements
 
-### Left / Main Area
+Decorations should primarily occupy:
 
-Show:
-- top label
-- main headline
-- subheadline
-{% if apps %}
-- apps label: {{ content.apps_label }}
-- for each app: red app-icon marker + name + store icons with MRR amounts (see App Icon Markers)
-{% endif %}
+- corners
+- outer edges
+- unused transitions between content regions
 
-The main headline should be the dominant visual element.
+Do not place prominent decorative geometry directly behind important text.
 
-{% if apps %}
-### App Icon Markers
+Do not let decorative elements compete with the headline, app information, status card, or progress bar.
 
-Real **app** logos are composited programmatically AFTER generation by detecting red markers.
-**Store** badges (App Store / Play Store) must be drawn by you in the final image — do not use chroma placeholders for stores.
+### Lighting
 
-For each app below (left → right), draw:
+Use subtle asymmetric lighting.
 
-1. One solid rounded square filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0) ≈ 40–56 px — the app icon slot only
-2. Beside it: the app name and total MRR
-3. Under or beside the name, the store split:
-   - a small recognizable **App Store** icon (≈ 14–20 px), then the App Store MRR amount
-   - a small recognizable **Play Store** icon (≈ 14–20 px), then the Play Store MRR amount
+Possible treatments include:
+
+- restrained cool or green glow near the left edge
+- subtle illumination through the center
+- complementary accent glow near the opposite edge
+- soft gradients fading naturally into black
+
+Maintain deep blacks throughout most of the canvas.
+
+Avoid excessive bloom.
+
+## Typography
+
+Use crisp modern sans-serif typography.
+
+The headline may use a bold condensed or semi-condensed display font.
+
+Use strong contrast between text and background.
+
+Preferred hierarchy:
+
+- headline: bold white with selected important value or target highlighted using the primary/accent treatment
+- top label: uppercase accent color with modest letter spacing
+- subtitle: white or slightly muted white
+- app names: bold white
+- app values: white
+- important MRR figures: accent color
+- secondary numbers: muted white or gray
+
+Do not use excessive font styles.
+
+Do not use decorative script fonts.
+
+Do not use tiny unreadable text.
+
+## Financial Accuracy
+
+This banner contains real financial information.
+
+Every supplied visible value must be rendered exactly.
+
+Preserve all of the following values exactly:
 
 {% for app in apps %}
-#### App {{ loop.index }} — {{ app.name }}
-
-- App icon marker: {{ icon_marker_hex }} (slot only — leave empty red)
-- App name: {{ app.name }}
-- Total MRR: {{ app.current_mrr_formatted }}
-- Store row: `[App Store icon] {{ app.apple_mrr_formatted }}   [Play Store icon] {{ app.google_mrr_formatted }}`
-
+- App name: `{{ app.name }}`
+- App MRR: `{{ app.current_mrr_formatted }}`
+- App Store MRR: `{{ app.apple_mrr_formatted }}`
+- Play Store MRR: `{{ app.google_mrr_formatted }}`
 {% endfor %}
+- Month: `{{ challenge.month_label }}`
+- Current MRR: `{{ content.revenue_label }}`
+- Starting MRR: `{{ challenge.start_mrr_formatted }}`
+- Target MRR: `{{ challenge.target_mrr_formatted }}`
+- Progress: `{{ revenue.target_progress_percent }}%`
 
-Rules:
-- the red app-icon marker fill MUST be solid pure {{ icon_marker_hex }} — no gradients, borders, glow, or texture
-- do not use {{ icon_marker_hex }} / pure red anywhere else
-- do not draw real app logos, glyphs, photos, or text inside the red markers
-- draw clear, recognizable App Store and Play Store icons yourself (blue App Store–style badge / colorful Play Store triangle mark)
-- do not write Apple / Google / App Store / Play Store as words
-- render every MRR amount exactly as supplied
+Do NOT:
+
+- invent values
+- modify supplied values
+- round supplied values
+- change currencies
+- change app names
+- change capitalization of app names
+- fabricate dates
+- fabricate statistics
+- duplicate statistics
+- display unresolved Jinja variables
+- display curly-brace template syntax
+
+## Strictly Forbidden Content
+
+Do not add any visible text or information that is not explicitly requested in the Visible Content section.
+
+Specifically, do NOT add:
+
+- creator credits
+- author names
+- X handles
+- social handles
+- GitHub handles
+- GitHub URLs
+- website URLs
+- "Made with"
+- "Made by"
+- signatures
+- watermarks
+- copyright notices
+- random slogans
+- fake company names
+- invented captions
+- additional statistics
+- additional revenue values
+- fake revenue values
+- fake dates
+- revenue history charts
+- line charts
+- stacked charts
+- graph axes
+- graph legends
+- additional cards
+- additional status blocks
+- additional progress indicators
+- random decorative text
+- dashboard labels not explicitly requested
+
+{% if apps %}
+Do not use pure {{ icon_marker_hex }} anywhere except inside the app-icon chroma markers.
+{% else %}
+Do not use pure {{ icon_marker_hex }} (or RGB `(255, 0, 0)`) anywhere in the generated image.
 {% endif %}
-
-### Right Status Card
-
-Keep this card minimal — do not repeat dates, deadlines, period labels, or progress % (progress lives only on the bottom bar).
-
-Show only two rows inside a dark rounded card with a subtle border/glow:
-
-1. **Month row**
-   - small calendar outline icon (accent color)
-   - text exactly: `{{ challenge.month_label }}`
-   - emphasize the current month number; mute the total
-
-2. **MRR row** (below a thin divider)
-   - small coin / currency outline icon
-   - text exactly: `Current MRR: {{ content.revenue_label }}`
-   - emphasize the MRR amount
-
-Do NOT show:
-- start date / deadline
-- “PERIOD” month name (e.g. July 2026)
-- duplicate “CURRENT PERIOD” blocks
-- progress percent or “toward target” copy in this card
-
-### Bottom Progress Bar
-
-Draw a single wide horizontal progress bar as the main bottom graphic (full width within safe margins).
-
-Style:
-- capsule / pill track with rounded ends
-- dark translucent track, subtle border
-- filled portion with a smooth gradient (accent → primary / chart color)
-- circular marker (thumb) on the fill edge with a thin light outline
-- optional subtle tick marks along the track
-
-Labels (exactly):
-- left, below the track: {{ challenge.start_mrr_formatted }}
-- right, below the track: {{ challenge.target_mrr_formatted }}
-- progress percent below the track: {{ revenue.target_progress_percent }}%
-
-Position the fill and marker at {{ revenue.target_progress_percent }}% of the track width.
-
-Place the progress percent label directly under the filled portion / marker — horizontally aligned with the thumb, not centered on the full bar. When progress is very small, keep the label near the left fill edge (slightly right of the start label so it stays readable), still under the filled segment — never in the middle of the empty track.
-
-Do not draw a revenue history chart, stacked bars, line chart, or legend.
-
-## Accuracy Rules
-
-This banner contains real financial data.
-
-Therefore:
-
-- Render every supplied number accurately.
-- Do not invent revenue values.
-- Do not change app names.
-- Do not change dates.
-- Do not change currencies.
-- Do not round values unless the formatted value already contains rounding.
-- Do not substitute placeholder values.
-- Do not display Jinja variables or braces.
-- Do not add additional statistics that were not supplied.
-- Do not invent a revenue history chart.
 
 ## Final Output
 
-Generate one complete polished X profile banner.
+Generate exactly one complete polished X profile banner.
 
-Leave only the pure-red **app** icon markers empty. Real app logos replace those afterward.
-App Store and Play Store icons must already be drawn correctly in the image.
-All other content must be publication-ready with no further overlays required.
+The banner should look immediately publication-ready.
+
+The only intentionally unfinished visual elements are:
+{% if apps %}
+
+1. the pure-red app icon chroma markers, which will later be replaced with real app icons
+{% endif %}
+{% if watermark.enabled %}
+{% if apps %}2.{% else %}1.{% endif %} the reserved {% if watermark.position == "bottom_center" %}bottom-center{% else %}top-right{% endif %} attribution area, where the watermark will later be added programmatically
+{% endif %}
+{% if not apps and not watermark.enabled %}
+
+None — the generated image must be fully complete with no placeholders.
+{% endif %}
+
+Everything else must already be complete in the generated image.

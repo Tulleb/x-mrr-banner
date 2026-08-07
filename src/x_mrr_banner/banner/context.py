@@ -119,6 +119,10 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "text_color": config.theme.text_color,
             "chart_color": config.theme.chart_color,
         },
+        "watermark": {
+            "enabled": config.watermark.enabled,
+            "position": config.watermark.position,
+        },
     }
 
 
