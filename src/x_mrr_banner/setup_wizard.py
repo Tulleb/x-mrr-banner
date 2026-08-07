@@ -491,9 +491,9 @@ def _sections(*, include_x: bool, include_openai: bool) -> list[Section]:
     if include_x:
         sections.append(
             Section(
-                name="X (Twitter)",
+                name="X",
                 optional=True,
-                configure_prompt="Configure X (Twitter) banner upload credentials now?",
+                configure_prompt="Configure X banner upload credentials now?",
                 intro=(
                     "Create an X developer app, then copy OAuth 1.0a keys for your account.\n"
                     "\n"
@@ -616,7 +616,7 @@ def write_env_file(values: dict[str, str], path: Path = ENV_PATH) -> Path:
             "GOOGLE_PLAY_SA_INVITED",
             "GOOGLE_PLAY_REPORTS_BUCKET",
         ]),
-        ("X (Twitter)", ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]),
+        ("X", ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]),
         ("OpenAI", ["OPENAI_API_KEY"]),
     ]
     lines = [

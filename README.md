@@ -1,8 +1,8 @@
-# x-mrr-banner
+# X MRR BANNER
 
 ![Example X profile banner](assets/example-banner.png)
 
-Update your X (Twitter) profile banner automatically with App Store Connect and Google Play revenues.
+Update your X profile banner automatically with App Store Connect and Google Play revenues.
 
 Fork this repo, run start once, and let GitHub Actions refresh the banner on a schedule. X upload is optional (`upload_to_x` in [`config.yaml`](config.yaml)); when off, CI still saves `output/banner.png` as an artifact.
 
