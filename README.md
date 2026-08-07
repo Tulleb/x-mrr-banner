@@ -21,7 +21,7 @@ cd x-mrr-banner
 ./scripts/start.sh
 ```
 
-Start creates `.venv`, runs `pip install -e .`, helps with `gh`, launches the credential + preference wizard (`.env`, `config.yaml`, Actions secrets), then generates the first banner via OpenAI (`update --dry-run`).
+Start creates `.venv`, runs `pip install -e .`, helps with `gh`, and launches the credential + preference wizard (`.env`, `config.yaml`, Actions secrets). It then **asks** whether to generate the first banner locally (`update --dry-run` → `output/YYYYMM/`).
 
 ```bash
 git add config.yaml
@@ -29,25 +29,7 @@ git commit -m "Add banner preferences"
 git push
 ```
 
-Then run **Actions → Update X banner** on your fork (or wait for the cron).
-
-Without start:
-
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-python -m pip install -e .
-python -m x_mrr_banner setup   # --local-only / --github-only / --skip-config
-python -m x_mrr_banner update --dry-run
-```
-
-## Commands
-
-```bash
-python -m x_mrr_banner setup
-python -m x_mrr_banner update
-python -m x_mrr_banner update --dry-run
-python -m x_mrr_banner update --upload
-```
+For ongoing monthly refreshes, run **Actions → Update X banner** on your fork (or wait for the cron).
 
 ## Configuration
 
@@ -73,7 +55,7 @@ The Action always updates the **previous full calendar month** (cron on the 1st,
 | `X_*` | v1.1 `update_profile_banner` (OAuth 1.0a; no v2) | Synced if configured |
 | `OPENAI_API_KEY` | Full banner generation via OpenAI | Synced by setup |
 
-See [`.env.example`](.env.example). Never commit `.env`.
+See [`.env.example`](.env.example). Kind reminder to never ever commit your `.env` file when containing secrets.
 
 ## How it works
 
