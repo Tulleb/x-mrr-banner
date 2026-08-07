@@ -63,6 +63,14 @@ Render the following text clearly and exactly.
 
 {{ content.revenue_label }}
 
+{% if apps %}
+### Apps (render beside each red marker)
+
+{% for app in apps %}
+- {{ app.name }} — total {{ app.current_mrr_formatted }} | Apple {{ app.apple_mrr_formatted }} | Google {{ app.google_mrr_formatted }}
+{% endfor %}
+{% endif %}
+
 ## Visual Direction
 
 - Mood: {{ theme.mood }}
@@ -104,30 +112,44 @@ Show:
 - top label
 - main headline
 - subheadline
-{% if icon_apps %}
+{% if apps %}
 - apps label: {{ content.apps_label }}
-- one solid pure-red icon marker per app (see Red Icon Markers), with the app name to the right of each marker
+- for each app: red icon marker + name + per-store MRR (see Red Icon Markers)
 {% endif %}
 
 The main headline should be the dominant visual element.
 
-{% if icon_apps %}
+{% if apps %}
 ### Red Icon Markers
 
 Real app icons are composited programmatically AFTER generation by detecting these markers.
 
-Draw exactly {{ icon_apps|length }} solid rounded squares filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0):
+Draw exactly {{ apps|length }} solid rounded squares filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0), left → right:
 
-{% for name in icon_apps %}
-- Marker {{ loop.index }} → app "{{ name }}" (left → right order)
+{% for app in apps %}
+#### Marker {{ loop.index }} — {{ app.name }}
+
+Beside this marker, render exactly:
+
+- App name: {{ app.name }}
+- Total MRR: {{ app.current_mrr_formatted }}
+- Apple: {{ app.apple_mrr_formatted }}
+- Google: {{ app.google_mrr_formatted }}
+
+Layout for this app (compact, readable):
+- red marker on the left
+- app name immediately to the right of the marker
+- under or beside the name, show store split as: `Apple {{ app.apple_mrr_formatted }} · Google {{ app.google_mrr_formatted }}`
+- optionally show total MRR once, smaller, next to the name
+
 {% endfor %}
 
 Rules:
 - fill MUST be solid pure {{ icon_marker_hex }} — no gradients, no borders, no glow, no texture
 - do not use {{ icon_marker_hex }} / pure red anywhere else on the banner
 - do not draw real logos, glyphs, photos, or text inside the markers
-- place markers in a horizontal row under the apps label
-- put each app name as plain text immediately to the right of its marker
+- place markers in a horizontal row under the apps label (or a tidy vertical list if space is tight)
+- render every Apple / Google MRR value exactly as supplied — do not invent or omit a store
 - markers should be roughly 40–56 px on the final {{ banner.width }}×{{ banner.height }} canvas (scale proportionally)
 {% endif %}
 

@@ -18,12 +18,10 @@ from x_mrr_banner.config import (
 )
 from x_mrr_banner.extract.aggregate import collect_revenues
 from x_mrr_banner.setup_wizard import run_setup
+from x_mrr_banner.ui import configure_logging
 from x_mrr_banner.upload.x_banner import upload_banner
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+configure_logging()
 logger = logging.getLogger("x_mrr_banner")
 
 
