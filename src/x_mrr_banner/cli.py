@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     generate = sub.add_parser(
         "generate_template",
-        help="Local-only: create assets/template via Nano Banana 2 Lite",
+        help="Local-only: create assets/template via OpenAI gpt-image-1",
     )
     generate.add_argument(
         "--overwrite",

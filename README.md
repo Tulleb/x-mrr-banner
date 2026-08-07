@@ -67,7 +67,7 @@ The Action always updates the **previous full calendar month** (cron on the 1st,
 | `ASC_*` | App Store Connect sales (Team key) | Synced by setup |
 | `GOOGLE_PLAY_*` | Play bulk sales (`pubsite_prod_*` GCS) | Synced by setup |
 | `X_*` | v1.1 `update_profile_banner` (OAuth 1.0a; no v2) | Synced if configured |
-| `GEMINI_API_KEY` | Local `generate_template` only | Local `.env` only |
+| `OPENAI_API_KEY` | Local `generate_template` only | Local `.env` only |
 
 See [`.env.example`](.env.example). Never commit `.env`.
 

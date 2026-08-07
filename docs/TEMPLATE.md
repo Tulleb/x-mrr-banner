@@ -1,6 +1,6 @@
 # Banner template generation
 
-This file guides the local `generate_template` command (Nano Banana 2 Lite).
+This file guides the local `generate_template` command (OpenAI `gpt-image-1`).
 Expand it with your brand rules, colors, and layout preferences.
 
 ## Target

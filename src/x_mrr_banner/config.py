@@ -120,7 +120,7 @@ def require_template_assets() -> None:
     raise FileNotFoundError(
         f"Template assets missing: {names}. "
         "Run locally: python -m x_mrr_banner generate_template "
-        "(requires GEMINI_API_KEY), then commit assets/template/."
+        "(requires OPENAI_API_KEY), then commit assets/template/."
     )
 
 

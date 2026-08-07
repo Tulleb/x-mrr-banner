@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import re
+from io import BytesIO
 from pathlib import Path
 
 import yaml
-from google import genai
+from openai import OpenAI
+from PIL import Image
 
 from x_mrr_banner.config import (
     BACKGROUND_PATH,
@@ -17,11 +20,15 @@ from x_mrr_banner.config import (
 
 logger = logging.getLogger(__name__)
 
-# Nano Banana 2 Lite — cheapest current Gemini image model
-NANO_BANANA_MODEL = "gemini-3.1-flash-lite-image"
+# OpenAI image model — landscape then cropped/resized to X banner size.
+OPENAI_IMAGE_MODEL = "gpt-image-1"
+OPENAI_IMAGE_SIZE = "1536x1024"
+BANNER_WIDTH = 1500
+BANNER_HEIGHT = 500
 
 DEFAULT_PROMPT = """
-Create a clean X (Twitter) profile banner background image, exactly 1500x500 pixels.
+Create a clean X (Twitter) profile banner background image.
+Final display size is 1500x500 pixels (wide 3:1 banner). Compose for that aspect ratio.
 Leave clear empty regions for later overlays:
 - large space on the left for a big revenue number
 - three smaller label areas for period, Apple revenue, and Google revenue
@@ -100,44 +107,43 @@ def _extract_prompt_from_doc(doc_path: Path) -> str:
     return "\n\n".join(parts)
 
 
-def _save_image_from_response(response: object, destination: Path) -> None:
-    # google-genai responses expose generated images via candidates/parts.
-    candidates = getattr(response, "candidates", None) or []
-    for candidate in candidates:
-        content = getattr(candidate, "content", None)
-        parts = getattr(content, "parts", None) or []
-        for part in parts:
-            inline = getattr(part, "inline_data", None)
-            if inline is not None and getattr(inline, "data", None):
-                destination.write_bytes(inline.data)
-                return
-            as_image = getattr(part, "as_image", None)
-            if callable(as_image):
-                image = as_image()
-                if image is not None:
-                    image.save(destination)
-                    return
-            if hasattr(part, "save"):
-                part.save(destination)
-                return
+def _fit_to_banner(image: Image.Image, width: int = BANNER_WIDTH, height: int = BANNER_HEIGHT) -> Image.Image:
+    """Center-crop to banner aspect ratio, then resize to exact X banner pixels."""
+    target_ratio = width / height
+    src = image.convert("RGB")
+    w, h = src.size
+    current = w / h
+    if current > target_ratio:
+        new_w = max(1, int(round(h * target_ratio)))
+        left = (w - new_w) // 2
+        src = src.crop((left, 0, left + new_w, h))
+    elif current < target_ratio:
+        new_h = max(1, int(round(w / target_ratio)))
+        top = (h - new_h) // 2
+        src = src.crop((0, top, w, top + new_h))
+    return src.resize((width, height), Image.Resampling.LANCZOS)
 
-    # Newer convenience helpers
-    for attr in ("output_image", "image"):
-        image = getattr(response, attr, None)
-        if image is None:
-            continue
-        if hasattr(image, "save"):
-            image.save(destination)
-            return
-        data = getattr(image, "data", None) or getattr(image, "image_bytes", None)
-        if data:
-            destination.write_bytes(data)
-            return
 
-    raise RuntimeError(
-        "Gemini returned no image data. Check GEMINI_API_KEY and model availability "
-        f"for {NANO_BANANA_MODEL}."
-    )
+def _save_openai_image(response: object, destination: Path) -> None:
+    data = getattr(response, "data", None) or []
+    if not data:
+        raise RuntimeError(
+            "OpenAI returned no image data. Check OPENAI_API_KEY and model availability "
+            f"for {OPENAI_IMAGE_MODEL}."
+        )
+    item = data[0]
+    b64 = getattr(item, "b64_json", None)
+    if not b64:
+        url = getattr(item, "url", None)
+        raise RuntimeError(
+            "OpenAI image response missing b64_json"
+            + (f" (got url={url!r})" if url else "")
+            + ". Request b64_json output."
+        )
+    raw = base64.b64decode(b64)
+    with Image.open(BytesIO(raw)) as image:
+        fitted = _fit_to_banner(image)
+        fitted.save(destination, format="PNG")
 
 
 def generate_template(
@@ -147,9 +153,9 @@ def generate_template(
     layout_path: Path = LAYOUT_PATH,
     overwrite: bool = False,
 ) -> tuple[Path, Path]:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is required for generate_template")
+        raise RuntimeError("OPENAI_API_KEY is required for generate_template")
 
     TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
     if not overwrite and background_path.exists() and layout_path.exists():
@@ -159,14 +165,23 @@ def generate_template(
         )
 
     prompt = _extract_prompt_from_doc(doc_path)
-    logger.info("Generating banner template with %s", NANO_BANANA_MODEL)
-
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=NANO_BANANA_MODEL,
-        contents=prompt,
+    logger.info(
+        "Generating banner template with %s (%s → %sx%s)",
+        OPENAI_IMAGE_MODEL,
+        OPENAI_IMAGE_SIZE,
+        BANNER_WIDTH,
+        BANNER_HEIGHT,
     )
-    _save_image_from_response(response, background_path)
+
+    client = OpenAI(api_key=api_key)
+    response = client.images.generate(
+        model=OPENAI_IMAGE_MODEL,
+        prompt=prompt,
+        size=OPENAI_IMAGE_SIZE,
+        quality="low",
+        output_format="png",
+    )
+    _save_openai_image(response, background_path)
 
     if overwrite or not layout_path.exists():
         with layout_path.open("w", encoding="utf-8") as handle:
