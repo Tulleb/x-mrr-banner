@@ -33,9 +33,13 @@ theme:
   text_color: "#FFFFFF"
   chart_color: "#7CFFB2"
 
+# Attribution watermark (Pillow overlay after generation)
+# position: top_right (default) | bottom_center
+watermark:
+  enabled: true
+  position: top_right
+
 # Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)
-# Optional per-app logo overrides: logo_path (repo-relative or absolute) or logo_url.
-# Otherwise icons are fetched from iTunes via the first apple_skus entry.
 apps:
   - name: "Voila"
     apple_skus:

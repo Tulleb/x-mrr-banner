@@ -29,9 +29,7 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
         config.challenge.target_mrr,
     )
     current_period = challenge_current_period(config.challenge)
-    current_period_label = (
-        f"{current_period:02d} / {config.challenge.total_periods:02d}"
-    )
+    month_label = f"Month {current_period:02d} / {config.challenge.total_periods}"
 
     start_date = config.challenge.start_date
     deadline = config.challenge.deadline
@@ -86,7 +84,7 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "start_date": start_date.isoformat() if start_date else "",
             "deadline": deadline.isoformat() if deadline else "",
             "current_period": current_period,
-            "current_period_label": current_period_label,
+            "month_label": month_label,
             "total_periods": config.challenge.total_periods,
             "target_mrr_formatted": target_mrr_formatted,
             "start_mrr_formatted": format_currency(config.challenge.start_mrr, currency),

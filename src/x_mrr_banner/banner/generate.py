@@ -10,10 +10,12 @@ from openai import OpenAI
 from PIL import Image
 
 from x_mrr_banner.banner.icons import overlay_app_icons
+from x_mrr_banner.banner.watermark import apply_watermark
 from x_mrr_banner.config import (
     BANNER_HEIGHT,
     BANNER_OUTPUT_PATH,
     BANNER_WIDTH,
+    WatermarkConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ def _save_openai_image(
     app_names: list[str] | None = None,
     background_color: str = "#0B0D10",
     text_color: str = "#FFFFFF",
+    watermark: WatermarkConfig | None = None,
 ) -> None:
     data = getattr(response, "data", None) or []
     if not data:
@@ -86,6 +89,7 @@ def _save_openai_image(
                 background_color=background_color,
                 text_color=text_color,
             )
+        fitted = apply_watermark(fitted, watermark or WatermarkConfig())
         fitted.save(destination, format="PNG")
         logger.info("Saved banner size: %sx%s", fitted.size[0], fitted.size[1])
 
@@ -98,6 +102,7 @@ def generate_banner(
     app_names: list[str] | None = None,
     background_color: str = "#0B0D10",
     text_color: str = "#FFFFFF",
+    watermark: WatermarkConfig | None = None,
 ) -> Path:
     """Generate the final X banner image from a fully rendered prompt."""
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -129,6 +134,7 @@ def generate_banner(
         app_names=app_names,
         background_color=background_color,
         text_color=text_color,
+        watermark=watermark,
     )
     logger.info("Banner written to %s", output_path)
     return output_path

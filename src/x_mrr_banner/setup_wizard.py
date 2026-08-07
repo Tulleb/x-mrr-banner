@@ -12,9 +12,16 @@ from typing import Callable
 
 import yaml
 
+from x_mrr_banner.banner.watermark import (
+    WATERMARK_AUTHOR_X,
+    WATERMARK_BTC,
+    WATERMARK_REPO_BIO,
+    WATERMARK_TEXT,
+)
 from x_mrr_banner.config import (
     DEFAULT_CONFIG_PATH,
     REPO_ROOT,
+    VALID_WATERMARK_POSITIONS,
     default_content_headline,
     load_config,
     require_banner_config,
@@ -697,6 +704,7 @@ def _write_config_yaml(
     challenge: dict,
     content: dict,
     theme: dict,
+    watermark: dict,
     apps: list[dict],
 ) -> None:
     lines = [
@@ -734,6 +742,12 @@ def _write_config_yaml(
         f"  accent_color: {_yaml_quote(theme['accent_color'])}",
         f"  text_color: {_yaml_quote(theme['text_color'])}",
         f"  chart_color: {_yaml_quote(theme['chart_color'])}",
+        "",
+        "# Attribution watermark (Pillow overlay after generation)",
+        "# position: top_right (default) | bottom_center",
+        "watermark:",
+        f"  enabled: {'true' if watermark.get('enabled', True) else 'false'}",
+        f"  position: {watermark.get('position') or 'top_right'}",
         "",
         "# Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)",
         "apps:",
@@ -802,6 +816,11 @@ _DEFAULT_THEME = {
     "chart_color": "#7CFFB2",
 }
 
+_DEFAULT_WATERMARK = {
+    "enabled": True,
+    "position": "top_right",
+}
+
 
 def _seed_config_state(raw: dict) -> dict:
     upload = _existing_upload(raw)
@@ -812,6 +831,7 @@ def _seed_config_state(raw: dict) -> dict:
         "challenge": _existing_challenge(raw) or dict(_DEFAULT_CHALLENGE),
         "content": _existing_content(raw) or dict(_DEFAULT_CONTENT),
         "theme": _existing_theme(raw) or dict(_DEFAULT_THEME),
+        "watermark": _existing_watermark(raw) or dict(_DEFAULT_WATERMARK),
         "apps": list(apps if apps is not None else []),
     }
 
@@ -824,6 +844,7 @@ def _persist_config_state(state: dict, *, reason: str) -> None:
         challenge=state["challenge"],
         content=state["content"],
         theme=state["theme"],
+        watermark=state.get("watermark") or dict(_DEFAULT_WATERMARK),
         apps=state["apps"],
     )
     ui.ok(f"Saved {DEFAULT_CONFIG_PATH.relative_to(REPO_ROOT)} ({reason})")
@@ -884,6 +905,19 @@ def _existing_theme(raw: dict) -> dict | None:
         "text_color": str(existing.get("text_color") or "#FFFFFF"),
         "chart_color": str(existing.get("chart_color") or "#7CFFB2"),
     }
+
+
+def _existing_watermark(raw: dict) -> dict | None:
+    if "watermark" not in raw:
+        return None
+    existing = raw.get("watermark") if isinstance(raw.get("watermark"), dict) else {}
+    position = str(existing.get("position") or "top_right").strip().lower()
+    if position not in VALID_WATERMARK_POSITIONS:
+        position = "top_right"
+    enabled = existing.get("enabled")
+    if enabled is None:
+        enabled = True
+    return {"enabled": bool(enabled), "position": position}
 
 
 def _existing_apps(raw: dict) -> list[dict] | None:
@@ -1076,6 +1110,68 @@ def _collect_theme(raw: dict, *, progress: _WizardProgress | None = None) -> dic
     return theme
 
 
+def _confirm_watermark_removal() -> bool:
+    """Ask for a small reciprocity gesture before disabling the attribution watermark."""
+    ui.info("Removing the watermark is fine — a small gesture in return would mean a lot:")
+    ui.bullet(f"Follow on X: {ui.url(WATERMARK_AUTHOR_X)}")
+    ui.bullet(f'Add to your X bio: "{WATERMARK_REPO_BIO}"')
+    ui.bullet(f"Tip Bitcoin: {WATERMARK_BTC}")
+    gesture = _prompt_choice(
+        "Which gesture did you (or will you) make?",
+        ("follow", "bio", "tip", "keep_watermark"),
+        "keep_watermark",
+    )
+    if gesture == "keep_watermark":
+        ui.info("Keeping the watermark — thank you!")
+        return False
+    labels = {
+        "follow": f"follow {WATERMARK_AUTHOR_X}",
+        "bio": "share the repo link in your X bio",
+        "tip": "tip on Bitcoin",
+    }
+    if not _prompt_yes_no(
+        f"Confirm you chose to {labels[gesture]} (honor system)?",
+        default=True,
+    ):
+        ui.info("Keeping the watermark — thank you!")
+        return False
+    ui.ok("Watermark disabled — thank you for the support!")
+    return True
+
+
+def _collect_watermark(raw: dict, *, progress: _WizardProgress | None = None) -> dict:
+    (progress.header if progress else _print_header)("Attribution watermark")
+    existing = _existing_watermark(raw)
+    if existing is not None:
+        status = "on" if existing["enabled"] else "off"
+        ui.ok(f"Current values: enabled={status}, position={existing['position']}")
+        ui.info(f"Text: {WATERMARK_TEXT}")
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping watermark preferences — nice work!")
+            return existing
+        ui.info("Updating watermark preferences.")
+
+    defaults = existing or dict(_DEFAULT_WATERMARK)
+    enabled = _prompt_yes_no(
+        f"Show attribution watermark on the banner? (\"{WATERMARK_TEXT}\")",
+        default=bool(defaults.get("enabled", True)),
+    )
+    if not enabled:
+        if not _confirm_watermark_removal():
+            enabled = True
+
+    position = str(defaults.get("position") or "top_right")
+    if enabled:
+        position = _prompt_choice(
+            "Watermark position",
+            VALID_WATERMARK_POSITIONS,
+            position if position in VALID_WATERMARK_POSITIONS else "top_right",
+        )
+    watermark = {"enabled": enabled, "position": position}
+    _advance_after_step("Watermark preferences saved — great job!")
+    return watermark
+
+
 def _parse_csv_list(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
@@ -1201,6 +1297,10 @@ def update_config_from_prompts(*, progress: _WizardProgress | None = None) -> No
     theme = _collect_theme(raw, progress=progress)
     state["theme"] = theme
     _persist_config_state(state, reason="theme preferences")
+
+    watermark = _collect_watermark(raw, progress=progress)
+    state["watermark"] = watermark
+    _persist_config_state(state, reason="watermark preferences")
 
     apps = _collect_apps(raw, progress=progress)
     state["apps"] = apps
@@ -1404,7 +1504,7 @@ def run_setup(
         return 0
 
     sections = _sections(include_x=True, include_openai=True)
-    config_steps = 0 if skip_config else 5
+    config_steps = 0 if skip_config else 6
     progress = _WizardProgress(len(sections) + config_steps)
 
     values = collect_secrets_interactively(existing, progress=progress)

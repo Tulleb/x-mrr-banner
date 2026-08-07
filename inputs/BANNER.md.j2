@@ -56,9 +56,9 @@ Render the following text clearly and exactly.
 
 {{ content.subheadline }}
 
-### Period
+### Month
 
-{{ content.period_label }}
+{{ challenge.month_label }}
 
 ### Current MRR
 
@@ -159,12 +159,25 @@ Rules:
 
 ### Right Status Card
 
-Show:
-- current period
-- current MRR
-- optional target progress
+Keep this card minimal — do not repeat dates, deadlines, period labels, or progress % (progress lives only on the bottom bar).
 
-Use a dark rounded card with subtle borders and glow.
+Show only two rows inside a dark rounded card with a subtle border/glow:
+
+1. **Month row**
+   - small calendar outline icon (accent color)
+   - text exactly: `{{ challenge.month_label }}`
+   - emphasize the current month number; mute the total
+
+2. **MRR row** (below a thin divider)
+   - small coin / currency outline icon
+   - text exactly: `Current MRR: {{ content.revenue_label }}`
+   - emphasize the MRR amount
+
+Do NOT show:
+- start date / deadline
+- “PERIOD” month name (e.g. July 2026)
+- duplicate “CURRENT PERIOD” blocks
+- progress percent or “toward target” copy in this card
 
 ### Bottom Progress Bar
 

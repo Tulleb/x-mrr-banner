@@ -142,6 +142,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         app_names=app_names or None,
         background_color=config.theme.background_color,
         text_color=config.theme.text_color,
+        watermark=config.watermark,
     )
     logger.info("Generated banner at %s", output)
 

@@ -89,6 +89,18 @@ class ThemeConfig:
     chart_color: str = "#7CFFB2"
 
 
+WatermarkPosition = Literal["top_right", "bottom_center"]
+VALID_WATERMARK_POSITIONS: tuple[WatermarkPosition, ...] = ("top_right", "bottom_center")
+
+
+@dataclass
+class WatermarkConfig:
+    """Attribution watermark overlaid after banner generation."""
+
+    enabled: bool = True
+    position: WatermarkPosition = "top_right"
+
+
 @dataclass
 class AppEntry:
     name: str
@@ -118,6 +130,7 @@ class AppConfig:
     challenge: ChallengeConfig = field(default_factory=ChallengeConfig)
     content: ContentConfig = field(default_factory=ContentConfig)
     theme: ThemeConfig = field(default_factory=ThemeConfig)
+    watermark: WatermarkConfig = field(default_factory=WatermarkConfig)
     apps: list[AppEntry] = field(default_factory=list)
 
     def all_apple_skus(self) -> list[str]:
@@ -314,6 +327,20 @@ def _load_content(raw: dict[str, Any]) -> ContentConfig:
     )
 
 
+def _load_watermark(raw: dict[str, Any]) -> WatermarkConfig:
+    data = raw.get("watermark") or {}
+    if not isinstance(data, dict):
+        data = {}
+    defaults = WatermarkConfig()
+    position = str(data.get("position") or defaults.position).strip().lower()
+    if position not in VALID_WATERMARK_POSITIONS:
+        position = defaults.position
+    enabled = data.get("enabled")
+    if enabled is None:
+        enabled = defaults.enabled
+    return WatermarkConfig(enabled=bool(enabled), position=position)  # type: ignore[arg-type]
+
+
 def _load_theme(raw: dict[str, Any]) -> ThemeConfig:
     data = raw.get("theme") or {}
     if not isinstance(data, dict):
@@ -395,6 +422,7 @@ def load_config(path: Path | None = None) -> AppConfig:
         challenge=_load_challenge(raw),
         content=_load_content(raw),
         theme=_load_theme(raw),
+        watermark=_load_watermark(raw),
         apps=_load_apps(raw),
     )
 
