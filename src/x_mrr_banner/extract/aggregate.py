@@ -56,6 +56,28 @@ def _portfolio_filters(config: AppConfig) -> tuple[list[str] | None, list[str] |
     return (skus or None, packages or None)
 
 
+def _apple_skus_for(app: AppEntry) -> list[str] | None:
+    return app.revenue_apple_skus() or None
+
+
+def _google_packages_for(app: AppEntry) -> list[str] | None:
+    return app.google_package_names or None
+
+
+def _make_app_revenue(
+    app: AppEntry,
+    *,
+    apple_rev: float,
+    google_rev: float,
+) -> AppRevenue:
+    return AppRevenue(
+        name=app.name,
+        apple_revenue=apple_rev,
+        google_revenue=google_rev,
+        total_revenue=apple_rev + google_rev,
+    )
+
+
 def _fetch_app_window(
     period: Period,
     start: date,
@@ -64,8 +86,8 @@ def _fetch_app_window(
     *,
     target_currency: str,
 ) -> AppRevenue:
-    apple_skus = app.revenue_apple_skus() or None
-    packages = app.google_package_names or None
+    apple_skus = _apple_skus_for(app)
+    packages = _google_packages_for(app)
 
     try:
         apple_rev = apple.fetch_apple_revenue(
@@ -87,51 +109,61 @@ def _fetch_app_window(
         _warn("Google Play", f"app {app.name!r} google revenue: {exc}")
         google_rev = 0.0
 
-    return AppRevenue(
-        name=app.name,
-        apple_revenue=apple_rev,
-        google_revenue=google_rev,
-        total_revenue=apple_rev + google_rev,
-    )
+    return _make_app_revenue(app, apple_rev=apple_rev, google_rev=google_rev)
 
 
-def _fetch_apple_history(
-    period: Period,
-    windows: list[tuple[date, date]],
-    apple_skus: list[str] | None,
+def _fetch_apple_daily_by_filter(
+    history_start: date,
+    history_end: date,
+    filters: list[tuple[str, list[str] | None]],
     *,
     target_currency: str,
-) -> tuple[dict[date, float], dict[tuple[date, date], float]]:
-    """Return (daily_map, window_totals). Prefer period reports when not daily."""
-    apple_daily: dict[date, float] = {}
-    apple_window_totals: dict[tuple[date, date], float] = {}
+) -> dict[str, dict[date, float]]:
+    """Download each daily report once; sum into named filter buckets."""
+    from x_mrr_banner.dates import daterange
 
-    if period == "daily":
-        history_start, history_end = windows[0][0], windows[-1][1]
-        day_count = (history_end - history_start).days + 1
-        logger.info(
-            "App Store Connect: fetching %d daily report(s) %s → %s…",
-            day_count,
-            history_start.isoformat(),
-            history_end.isoformat(),
-        )
+    days = list(daterange(history_start, history_end))
+    total = len(days)
+    result: dict[str, dict[date, float]] = {
+        name: {day: 0.0 for day in days} for name, _ in filters
+    }
+    logger.info(
+        "App Store Connect: fetching %d daily report(s) %s → %s…",
+        total,
+        history_start.isoformat(),
+        history_end.isoformat(),
+    )
+    for index, day in enumerate(days, start=1):
+        if index == 1 or index == total or index % 10 == 0:
+            logger.info("  Apple daily %d/%d: %s", index, total, day.isoformat())
         try:
-            apple_daily = apple.fetch_apple_daily_series(
-                history_start,
-                history_end,
-                apple_skus=apple_skus,
-                target_currency=target_currency,
+            rows = apple.download_sales_report(
+                period="daily", window_start=day, window_end=day
             )
-        except Exception as exc:  # noqa: BLE001 — store failures must not abort the run
-            _warn("App Store Connect", f"daily series unavailable ({exc})")
-        return apple_daily, apple_window_totals
+        except Exception as exc:  # noqa: BLE001
+            _warn("App Store Connect", f"daily report missing for {day}: {exc}")
+            continue
+        for name, skus in filters:
+            result[name][day] = apple.sum_apple_proceeds(
+                rows,
+                apple_skus=skus,
+                target_currency=target_currency,
+                as_of=day,
+            )
+    return result
 
-    # Weekly/monthly: one report per history window (not hundreds of daily downloads).
+
+def _fetch_apple_window_rows(
+    period: Period,
+    windows: list[tuple[date, date]],
+) -> dict[tuple[date, date], list[dict[str, str]]]:
+    """Download one sales report per history window (weekly/monthly)."""
     logger.info(
         "App Store Connect: fetching %d %s report(s) for chart history…",
         len(windows),
         period,
     )
+    rows_by_window: dict[tuple[date, date], list[dict[str, str]]] = {}
     for index, (start, end) in enumerate(windows, start=1):
         logger.info(
             "  Apple %d/%d: %s → %s",
@@ -141,20 +173,54 @@ def _fetch_apple_history(
             end.isoformat(),
         )
         try:
-            apple_window_totals[(start, end)] = apple.fetch_apple_revenue(
-                period,
-                start,
-                end,
-                apple_skus=apple_skus,
-                target_currency=target_currency,
+            rows_by_window[(start, end)] = apple.download_sales_report(
+                period=period, window_start=start, window_end=end
             )
         except Exception as window_exc:  # noqa: BLE001
             _warn(
                 "App Store Connect",
                 f"revenue missing for {start}–{end}: {window_exc}",
             )
-            apple_window_totals[(start, end)] = 0.0
-    return apple_daily, apple_window_totals
+            rows_by_window[(start, end)] = []
+    return rows_by_window
+
+
+def _app_slices_for_window(
+    apps: list[AppEntry],
+    *,
+    period: Period,
+    start: date,
+    end: date,
+    target_currency: str,
+    apple_rows: list[dict[str, str]] | None,
+    apple_daily_by_key: dict[str, dict[date, float]],
+    google_rows: list[dict[str, str]],
+) -> list[AppRevenue]:
+    slices: list[AppRevenue] = []
+    for app in apps:
+        if period == "daily":
+            apple_rev = _sum_daily(
+                apple_daily_by_key.get(f"app:{app.name}", {}), start, end
+            )
+        else:
+            apple_rev = apple.sum_apple_proceeds(
+                apple_rows or [],
+                apple_skus=_apple_skus_for(app),
+                target_currency=target_currency,
+                as_of=end,
+            )
+        google_rev = (
+            google_play.sum_google_revenue(
+                google_rows,
+                start,
+                end,
+                package_names=_google_packages_for(app),
+            )
+            if google_rows
+            else 0.0
+        )
+        slices.append(_make_app_revenue(app, apple_rev=apple_rev, google_rev=google_rev))
+    return slices
 
 
 def collect_revenues(period: Period, config: AppConfig, as_of: date | None = None) -> RevenueSnapshot:
@@ -174,30 +240,70 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
     )
 
     apple_skus, package_names = _portfolio_filters(config)
-    apple_daily, apple_window_totals = _fetch_apple_history(
-        period, windows, apple_skus, target_currency=target_currency
-    )
 
-    google_daily: dict[date, float] = {}
+    google_rows: list[dict[str, str]] = []
     logger.info(
         "Google Play: fetching sales %s → %s…",
         history_start.isoformat(),
         history_end.isoformat(),
     )
     try:
-        google_daily = google_play.fetch_google_daily_series(
-            history_start, history_end, package_names=package_names
-        )
+        google_rows = google_play.load_play_sales_rows(history_start, history_end)
     except Exception as exc:  # noqa: BLE001
         _warn("Google Play", f"series unavailable: {exc}")
 
+    apple_daily_by_key: dict[str, dict[date, float]] = {}
+    apple_rows_by_window: dict[tuple[date, date], list[dict[str, str]]] = {}
+
+    if period == "daily":
+        filters: list[tuple[str, list[str] | None]] = [("portfolio", apple_skus)]
+        for app in config.apps:
+            filters.append((f"app:{app.name}", _apple_skus_for(app)))
+        try:
+            apple_daily_by_key = _fetch_apple_daily_by_filter(
+                history_start,
+                history_end,
+                filters,
+                target_currency=target_currency,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _warn("App Store Connect", f"daily series unavailable ({exc})")
+    else:
+        apple_rows_by_window = _fetch_apple_window_rows(period, windows)
+
     series: list[SeriesPoint] = []
     for start, end in windows:
-        if apple_daily:
-            apple_rev = _sum_daily(apple_daily, start, end)
+        if period == "daily":
+            apple_rows = None
+            apple_rev = _sum_daily(apple_daily_by_key.get("portfolio", {}), start, end)
         else:
-            apple_rev = apple_window_totals.get((start, end), 0.0)
-        google_rev = _sum_daily(google_daily, start, end) if google_daily else 0.0
+            apple_rows = apple_rows_by_window.get((start, end), [])
+            apple_rev = apple.sum_apple_proceeds(
+                apple_rows,
+                apple_skus=apple_skus,
+                target_currency=target_currency,
+                as_of=end,
+            )
+
+        google_rev = (
+            google_play.sum_google_revenue(
+                google_rows, start, end, package_names=package_names
+            )
+            if google_rows
+            else 0.0
+        )
+
+        app_slices = _app_slices_for_window(
+            config.apps,
+            period=period,
+            start=start,
+            end=end,
+            target_currency=target_currency,
+            apple_rows=apple_rows,
+            apple_daily_by_key=apple_daily_by_key,
+            google_rows=google_rows,
+        )
+
         series.append(
             SeriesPoint(
                 label=_label_for(period, start, end),
@@ -205,50 +311,62 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
                 apple_revenue=apple_rev,
                 google_revenue=google_rev,
                 total_revenue=apple_rev + google_rev,
+                apps=app_slices,
             )
         )
 
-    logger.info(
-        "App Store Connect: primary %s window %s → %s…",
-        period,
-        primary_start.isoformat(),
-        primary_end.isoformat(),
-    )
-    try:
-        apple_revenue = apple.fetch_apple_revenue(
+    latest = series[-1] if series else None
+    primary_matches_latest = latest is not None and latest.date == primary_end
+
+    if primary_matches_latest and latest is not None:
+        logger.info(
+            "Primary window matches latest history point; reusing portfolio + per-app totals."
+        )
+        apple_revenue = latest.apple_revenue
+        google_revenue = latest.google_revenue
+        app_revenues = list(latest.apps)
+    else:
+        logger.info(
+            "App Store Connect: primary %s window %s → %s…",
             period,
-            primary_start,
-            primary_end,
-            apple_skus=apple_skus,
-            target_currency=target_currency,
+            primary_start.isoformat(),
+            primary_end.isoformat(),
         )
-    except Exception as exc:  # noqa: BLE001
-        _warn("App Store Connect", f"primary window failed: {exc}")
-        apple_revenue = series[-1].apple_revenue if series else 0.0
-
-    logger.info("Google Play: primary window…")
-    try:
-        google_revenue = google_play.fetch_google_revenue(
-            primary_start, primary_end, package_names=package_names
-        )
-    except Exception as exc:  # noqa: BLE001
-        _warn("Google Play", f"primary window failed: {exc}")
-        google_revenue = series[-1].google_revenue if series else 0.0
-
-    app_revenues: list[AppRevenue] = []
-    if config.apps:
-        logger.info("Fetching per-app revenues (%d app(s))…", len(config.apps))
-    for index, app in enumerate(config.apps, start=1):
-        logger.info("  App %d/%d: %s", index, len(config.apps), app.name)
-        app_revenues.append(
-            _fetch_app_window(
+        try:
+            apple_revenue = apple.fetch_apple_revenue(
                 period,
                 primary_start,
                 primary_end,
-                app,
+                apple_skus=apple_skus,
                 target_currency=target_currency,
             )
-        )
+        except Exception as exc:  # noqa: BLE001
+            _warn("App Store Connect", f"primary window failed: {exc}")
+            apple_revenue = latest.apple_revenue if latest else 0.0
+
+        logger.info("Google Play: primary window…")
+        try:
+            google_revenue = google_play.fetch_google_revenue(
+                primary_start, primary_end, package_names=package_names
+            )
+        except Exception as exc:  # noqa: BLE001
+            _warn("Google Play", f"primary window failed: {exc}")
+            google_revenue = latest.google_revenue if latest else 0.0
+
+        app_revenues = []
+        if config.apps:
+            logger.info("Fetching per-app revenues (%d app(s))…", len(config.apps))
+        for index, app in enumerate(config.apps, start=1):
+            logger.info("  App %d/%d: %s", index, len(config.apps), app.name)
+            app_revenues.append(
+                _fetch_app_window(
+                    period,
+                    primary_start,
+                    primary_end,
+                    app,
+                    target_currency=target_currency,
+                )
+            )
 
     logger.info("Revenue fetch complete.")
     return RevenueSnapshot(

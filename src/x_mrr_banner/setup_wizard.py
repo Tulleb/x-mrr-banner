@@ -717,9 +717,7 @@ def _write_config_yaml(
         "",
         "# Banner copy (period_label / revenue_label are filled from live data at update time)",
         "content:",
-        f"  top_label: {_yaml_quote(content['top_label'])}",
         f"  headline: {_yaml_quote(content['headline'])}",
-        f"  subheadline: {_yaml_quote(content['subheadline'])}",
         f"  apps_label: {_yaml_quote(content['apps_label'])}",
         "",
         "# Visual direction for the OpenAI banner prompt",
@@ -768,7 +766,7 @@ def _write_config_yaml(
 
 
 _DEFAULT_CHALLENGE = {
-    "headline": "$10k MRR Challenge",
+    "headline": "$10k MRR Target",
     "start_date": "2026-01-01",
     "deadline": "2026-12-31",
     "total_periods": 12,
@@ -777,9 +775,7 @@ _DEFAULT_CHALLENGE = {
 }
 
 _DEFAULT_CONTENT = {
-    "top_label": "PUBLIC BUILD LOG",
-    "headline": "",
-    "subheadline": "Building in public toward the target",
+    "headline": "$10k MRR Target",
     "apps_label": "Apps in progress",
 }
 
@@ -846,12 +842,11 @@ def _existing_challenge(raw: dict) -> dict | None:
 
 def _existing_content(raw: dict) -> dict | None:
     existing = raw.get("content") if isinstance(raw.get("content"), dict) else {}
-    if not str(existing.get("top_label") or "").strip():
+    headline = str(existing.get("headline") or "").strip()
+    if not headline and not str(existing.get("apps_label") or "").strip():
         return None
     return {
-        "top_label": str(existing.get("top_label") or ""),
-        "headline": str(existing.get("headline") or ""),
-        "subheadline": str(existing.get("subheadline") or ""),
+        "headline": headline or str(_DEFAULT_CONTENT["headline"]),
         "apps_label": str(existing.get("apps_label") or ""),
     }
 
@@ -932,7 +927,7 @@ def _collect_challenge(raw: dict, *, progress: _WizardProgress | None = None) ->
     challenge = {
         "headline": _prompt_text(
             "Challenge headline",
-            str(defaults.get("headline") or "$10k MRR Challenge"),
+            str(defaults.get("headline") or "$10k MRR Target"),
         ),
         "start_date": _prompt_iso_date(
             "Start date (YYYY-MM-DD)",
@@ -966,7 +961,7 @@ def _collect_content(
     existing = _existing_content(raw)
     if existing is not None:
         ui.ok(
-            f"Current values: top_label={existing['top_label']!r}, "
+            f"Current values: headline={existing['headline']!r}, "
             f"apps_label={existing['apps_label']!r}"
         )
         if not _prompt_yes_no("Change current values?", default=False):
@@ -976,17 +971,13 @@ def _collect_content(
 
     defaults = existing or {}
     content = {
-        "top_label": _prompt_text(
-            "Top label",
-            str(defaults.get("top_label") or "PUBLIC BUILD LOG"),
-        ),
         "headline": _prompt_text(
-            "Main headline",
-            str(defaults.get("headline") or challenge.get("headline") or ""),
-        ),
-        "subheadline": _prompt_text(
-            "Subheadline",
-            str(defaults.get("subheadline") or "Building in public toward the target"),
+            "Headline",
+            str(
+                defaults.get("headline")
+                or challenge.get("headline")
+                or _DEFAULT_CONTENT["headline"]
+            ),
         ),
         "apps_label": _prompt_text(
             "Apps line",

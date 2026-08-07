@@ -40,29 +40,33 @@ All supplied values must be rendered accurately.
 
 ## Revenue History
 
-Use the following REAL values to draw the revenue chart.
+Use the following REAL values to draw a stacked bar chart.
 
-| Period | Apple | Google | Total |
-| --- | ---: | ---: | ---: |
+Each period is one bar. Stack segments by **app** (not by store).
+Segment heights are that app's total revenue for the period (Apple + Google combined).
+Bar height equals the period Total.
+
+{% if revenue.chart_app_names %}
+| Period |{% for name in revenue.chart_app_names %} {{ name }} |{% endfor %} Total |
+| --- |{% for name in revenue.chart_app_names %} ---: |{% endfor %} ---: |
 {% for period in revenue.history %}
-| {{ period.label }} | {{ period.apple_formatted }} | {{ period.google_formatted }} | {{ period.total_formatted }} |
+| {{ period.label }} |{% for app in period.apps %} {{ app.total_formatted }} |{% endfor %} {{ period.total_formatted }} |
 {% endfor %}
+{% else %}
+| Period | Total |
+| --- | ---: |
+{% for period in revenue.history %}
+| {{ period.label }} | {{ period.total_formatted }} |
+{% endfor %}
+{% endif %}
 
 ## Text to Render
 
 Render the following text clearly and exactly.
 
-### Top Label
-
-{{ content.top_label }}
-
-### Main Headline
+### Headline
 
 {{ content.headline }}
-
-### Subheadline
-
-{{ content.subheadline }}
 
 ### Apps Line
 
@@ -113,9 +117,7 @@ Follow this structure:
 ### Left / Main Area
 
 Show:
-- top label
-- main challenge headline
-- subheadline
+- headline
 - apps being built
 
 The headline should be the dominant visual element.
@@ -131,16 +133,20 @@ Use a dark rounded card with subtle borders and glow.
 
 ### Bottom Revenue Chart
 
-Draw a real revenue chart using the supplied revenue history.
+Draw a real stacked bar chart using the supplied revenue history.
 
 Requirements:
-- use only the real values provided
+- one vertical bar per period, oldest → newest left to right
+- stack each bar by **app** (segment per app), not by Apple / Google store
+- use only the real per-app values provided
 - preserve chronological order
-- visually distinguish Apple and Google where appropriate
-- show total revenue clearly
-- keep labels readable
+- visually distinguish apps with distinct segment colors (derive from primary / accent / chart colors)
+- show a compact legend with app names
+- show total bar height from the Total column
+- keep period labels readable
 - do not invent intermediate values
 - do not fabricate missing data
+- do not stack or color by store
 
 ### Bottom Progress Indicator
 

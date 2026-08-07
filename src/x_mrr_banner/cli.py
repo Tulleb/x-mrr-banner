@@ -55,8 +55,7 @@ def _log_banner_numbers(config: AppConfig, snapshot: RevenueSnapshot) -> None:
         ctx["revenue"]["target_progress_percent"],
     )
     logger.info(
-        "Content labels: top=%r headline=%r period=%r revenue=%r",
-        ctx["content"]["top_label"],
+        "Content labels: headline=%r period=%r revenue=%r",
         ctx["content"]["headline"],
         ctx["content"]["period_label"],
         ctx["content"]["revenue_label"],
@@ -86,14 +85,27 @@ def _log_banner_numbers(config: AppConfig, snapshot: RevenueSnapshot) -> None:
     else:
         logger.info("Revenue history (%d points, chronological):", len(snapshot.series))
         for point in snapshot.series:
-            logger.info(
-                "  • %s (%s): apple=%s google=%s total=%s",
-                point.label,
-                point.date.isoformat(),
-                format_currency(point.apple_revenue, currency),
-                format_currency(point.google_revenue, currency),
-                format_currency(point.total_revenue, currency),
-            )
+            if point.apps:
+                app_parts = ", ".join(
+                    f"{app.name}={format_currency(app.total_revenue, currency)}"
+                    for app in point.apps
+                )
+                logger.info(
+                    "  • %s (%s): total=%s | apps: %s",
+                    point.label,
+                    point.date.isoformat(),
+                    format_currency(point.total_revenue, currency),
+                    app_parts,
+                )
+            else:
+                logger.info(
+                    "  • %s (%s): apple=%s google=%s total=%s",
+                    point.label,
+                    point.date.isoformat(),
+                    format_currency(point.apple_revenue, currency),
+                    format_currency(point.google_revenue, currency),
+                    format_currency(point.total_revenue, currency),
+                )
 
     logger.info("===========================================================")
 

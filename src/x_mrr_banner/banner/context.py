@@ -37,6 +37,13 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "apple_formatted": format_currency(point.apple_revenue, currency),
             "google_formatted": format_currency(point.google_revenue, currency),
             "total_formatted": format_currency(point.total_revenue, currency),
+            "apps": [
+                {
+                    "name": app.name,
+                    "total_formatted": format_currency(app.total_revenue, currency),
+                }
+                for app in point.apps
+            ],
         }
         for point in snapshot.series
     ]
@@ -51,10 +58,16 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
         for app in snapshot.apps
     ]
 
+    chart_app_names = [app.name for app in snapshot.apps]
+
     period = period_label(snapshot)
     revenue_formatted = format_currency(snapshot.total_revenue, currency)
 
-    content_headline = config.content.headline.strip() or config.challenge.headline
+    content_headline = (
+        config.content.headline.strip()
+        or config.challenge.headline.strip()
+        or "$10k MRR Target"
+    )
     return {
         "banner": {
             "width": BANNER_WIDTH,
@@ -74,12 +87,11 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "current_mrr_formatted": revenue_formatted,
             "target_progress_percent": round(progress, 1),
             "history": history,
+            "chart_app_names": chart_app_names,
         },
         "apps": apps,
         "content": {
-            "top_label": config.content.top_label,
             "headline": content_headline,
-            "subheadline": config.content.subheadline,
             "apps_label": config.content.apps_label,
             "period_label": period,
             "revenue_label": revenue_formatted,

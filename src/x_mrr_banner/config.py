@@ -71,9 +71,7 @@ class ChallengeConfig:
 
 @dataclass
 class ContentConfig:
-    top_label: str = ""
-    headline: str = ""
-    subheadline: str = ""
+    headline: str = "$10k MRR Target"
     apps_label: str = ""
 
 
@@ -139,20 +137,21 @@ class AppConfig:
 
 
 @dataclass
-class SeriesPoint:
-    label: str
-    date: date
+class AppRevenue:
+    name: str
     apple_revenue: float
     google_revenue: float
     total_revenue: float
 
 
 @dataclass
-class AppRevenue:
-    name: str
+class SeriesPoint:
+    label: str
+    date: date
     apple_revenue: float
     google_revenue: float
     total_revenue: float
+    apps: list[AppRevenue] = field(default_factory=list)
 
 
 @dataclass
@@ -269,10 +268,9 @@ def _load_content(raw: dict[str, Any]) -> ContentConfig:
     data = raw.get("content") or {}
     if not isinstance(data, dict):
         data = {}
+    defaults = ContentConfig()
     return ContentConfig(
-        top_label=str(data.get("top_label") or ""),
-        headline=str(data.get("headline") or ""),
-        subheadline=str(data.get("subheadline") or ""),
+        headline=str(data.get("headline") or defaults.headline),
         apps_label=str(data.get("apps_label") or ""),
     )
 

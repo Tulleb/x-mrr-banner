@@ -16,9 +16,7 @@ challenge:
 
 # Banner copy (period_label / revenue_label are filled from live data at update time)
 content:
-  top_label: "PUBLIC BUILD LOG"
   headline: "$10k MRR Target"
-  subheadline: "Building in public toward the target"
   apps_label: "Apps in progress"
 
 # Visual direction for the OpenAI banner prompt
