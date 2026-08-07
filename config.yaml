@@ -15,7 +15,7 @@ challenge:
   target_mrr: 10000.0
 
 # Banner copy (period_label / revenue_label are filled from live data at update time)
-# Leave headline empty to use: "{total_periods} TO {target_mrr}"
+# Leave headline empty to use: "{N} MONTHS TO $10K MRR"
 content:
   top_label: "BUILDING IN PUBLIC"
   headline: ""

@@ -20,14 +20,12 @@ logger = logging.getLogger(__name__)
 
 LOGO_CACHE_DIR = OUTPUT_DIR / "logos"
 
-# Pure-red chroma key GPT is instructed to paint for icon slots.
+# Pure-red chroma key GPT paints for app icon slots (replaced after generation).
 ICON_MARKER_RGB = (255, 0, 0)
 ICON_MARKER_HEX = "#FF0000"
 # Generative models rarely hit exact #FF0000 — tolerate nearby reds.
-_RED_R_MIN = 200
-_RED_G_MAX = 60
-_RED_B_MAX = 60
-_MIN_MARKER_AREA = 200
+_RED_R_MIN, _RED_G_MAX, _RED_B_MAX = 200, 60, 60
+_MIN_APP_MARKER_AREA = 200
 _MAX_LOGO_SLOTS = 6
 _DEFAULT_ICON_SIZE = 48
 _ICON_CORNER_RATIO = 0.22
@@ -281,8 +279,13 @@ def _is_marker_red(r: int, g: int, b: int) -> bool:
     return r >= _RED_R_MIN and g <= _RED_G_MAX and b <= _RED_B_MAX
 
 
-def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
-    """Find connected pure-red regions, left → right."""
+def detect_color_blobs(
+    image: Image.Image,
+    matches,
+    *,
+    min_area: int,
+) -> list[_RedBlob]:
+    """Find connected regions matching a color predicate, left → right."""
     rgb = image.convert("RGB")
     width, height = rgb.size
     pixels = rgb.load()
@@ -294,7 +297,7 @@ def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
             if visited[y][x]:
                 continue
             r, g, b = pixels[x, y]
-            if not _is_marker_red(r, g, b):
+            if not matches(r, g, b):
                 visited[y][x] = True
                 continue
 
@@ -321,13 +324,13 @@ def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
                     if visited[ny][nx]:
                         continue
                     nr, ng, nb = pixels[nx, ny]
-                    if _is_marker_red(nr, ng, nb):
+                    if matches(nr, ng, nb):
                         visited[ny][nx] = True
                         queue.append((nx, ny))
                     else:
                         visited[ny][nx] = True
 
-            if len(members) < _MIN_MARKER_AREA:
+            if len(members) < min_area:
                 continue
             blobs.append(
                 _RedBlob(
@@ -341,6 +344,17 @@ def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
 
     blobs.sort(key=lambda blob: (blob.x, blob.y))
     return blobs
+
+
+def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
+    return detect_color_blobs(image, _is_marker_red, min_area=_MIN_APP_MARKER_AREA)
+
+
+def _erase_blobs(canvas: Image.Image, blobs: list[_RedBlob], bg: tuple[int, int, int]) -> None:
+    px = canvas.load()
+    for blob in blobs:
+        for x, y in blob.pixels:
+            px[x, y] = (*bg, 255)
 
 
 def slots_from_red_markers(
@@ -406,31 +420,25 @@ def overlay_app_icons(
     background_color: str = "#0B0D10",
     text_color: str = "#FFFFFF",
 ) -> Image.Image:
-    """Detect #FF0000 markers, erase them, paste real icons at those positions."""
-    del text_color  # names are drawn by the model next to markers
+    """Replace pure-red app markers with real app icons (store badges are drawn by the model)."""
+    del text_color  # names / amounts / store icons are drawn by the model
     canvas = banner.convert("RGBA")
     bg = _parse_hex_color(background_color)
-    slots, blobs = slots_from_red_markers(canvas, app_names)
-
-    # Erase detected red pixels so nothing bleeds around rounded icons.
-    px = canvas.load()
-    for blob in blobs:
-        for x, y in blob.pixels:
-            px[x, y] = (*bg, 255)
+    slots, red_blobs = slots_from_red_markers(canvas, app_names)
+    _erase_blobs(canvas, red_blobs, bg)
 
     for icon, slot in zip(icons, slots, strict=False):
         prepared = rounded_icon(icon, slot.size, slot.radius)
-        # Clamp paste origin inside the canvas.
         x = max(0, min(slot.x, canvas.size[0] - slot.size))
         y = max(0, min(slot.y, canvas.size[1] - slot.size))
         canvas.paste(prepared, (x, y), mask=prepared)
         logger.info(
-            "Overlayed icon for %s at (%s,%s) size=%s (marker-detect=%s)",
+            "Overlayed app icon for %s at (%s,%s) size=%s (marker-detect=%s)",
             slot.app_name,
             x,
             y,
             slot.size,
-            bool(blobs),
+            bool(red_blobs),
         )
 
     return canvas.convert("RGB")

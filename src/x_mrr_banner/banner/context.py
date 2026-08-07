@@ -14,6 +14,7 @@ from x_mrr_banner.config import (
     AppConfig,
     RevenueSnapshot,
     challenge_current_period,
+    default_content_headline,
     format_currency,
     period_label,
     target_progress_percent,
@@ -28,6 +29,9 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
         config.challenge.target_mrr,
     )
     current_period = challenge_current_period(config.challenge)
+    current_period_label = (
+        f"{current_period:02d} / {config.challenge.total_periods:02d}"
+    )
 
     start_date = config.challenge.start_date
     deadline = config.challenge.deadline
@@ -66,8 +70,10 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
     revenue_formatted = format_currency(snapshot.total_revenue, currency)
 
     target_mrr_formatted = format_currency(config.challenge.target_mrr, currency)
-    content_headline = config.content.headline.strip() or (
-        f"{config.challenge.total_periods} TO {target_mrr_formatted}"
+    content_headline = config.content.headline.strip() or default_content_headline(
+        total_periods=config.challenge.total_periods,
+        target_mrr=config.challenge.target_mrr,
+        currency=currency,
     )
     return {
         "banner": {
@@ -80,6 +86,7 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
             "start_date": start_date.isoformat() if start_date else "",
             "deadline": deadline.isoformat() if deadline else "",
             "current_period": current_period,
+            "current_period_label": current_period_label,
             "total_periods": config.challenge.total_periods,
             "target_mrr_formatted": target_mrr_formatted,
             "start_mrr_formatted": format_currency(config.challenge.start_mrr, currency),

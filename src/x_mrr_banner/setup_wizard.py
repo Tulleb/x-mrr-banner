@@ -15,6 +15,7 @@ import yaml
 from x_mrr_banner.config import (
     DEFAULT_CONFIG_PATH,
     REPO_ROOT,
+    default_content_headline,
     load_config,
     require_banner_config,
 )
@@ -716,7 +717,7 @@ def _write_config_yaml(
         f"  target_mrr: {challenge['target_mrr']}",
         "",
         "# Banner copy (period_label / revenue_label are filled from live data at update time)",
-        "# Leave headline empty to use: \"{total_periods} TO {target_mrr}\"",
+        "# Leave headline empty to use: \"{N} MONTHS TO $10K MRR\"",
         "content:",
         f"  top_label: {_yaml_quote(content['top_label'])}",
         f"  headline: {_yaml_quote(content['headline'])}",
@@ -980,7 +981,7 @@ def _collect_content(
     (progress.header if progress else _print_header)("Banner content")
     existing = _existing_content(raw)
     if existing is not None:
-        headline_display = existing["headline"] or "(auto: N TO target)"
+        headline_display = existing["headline"] or "(auto: N MONTHS TO $NK MRR)"
         ui.ok(
             f"Current values: top_label={existing['top_label']!r}, "
             f"headline={headline_display!r}, "
@@ -993,9 +994,10 @@ def _collect_content(
 
     defaults = existing or {}
     default_headline = str(defaults.get("headline") or "")
-    auto_hint = (
-        f"{challenge.get('total_periods') or 12} TO "
-        f"${float(challenge.get('target_mrr') or 10000):,.0f}".replace(".0", "")
+    auto_hint = default_content_headline(
+        total_periods=int(challenge.get("total_periods") or 12),
+        target_mrr=float(challenge.get("target_mrr") or 10000),
+        currency="USD",
     )
     content = {
         "top_label": _prompt_text(

@@ -211,6 +211,38 @@ def format_currency(amount: float, currency: str) -> str:
     return f"{symbol}{amount:,.2f}"
 
 
+def format_compact_target(amount: float, currency: str) -> str:
+    """Compact target for headlines, e.g. 10000 USD → $10K."""
+    symbol = {
+        "USD": "$",
+        "EUR": "€",
+        "GBP": "£",
+        "JPY": "¥",
+    }.get(currency.upper(), f"{currency} ")
+    abs_amount = abs(amount)
+    if abs_amount >= 1_000_000 and abs(abs_amount % 1_000_000) < 1e-6:
+        value = abs_amount / 1_000_000
+        text = f"{value:.0f}" if abs(value - round(value)) < 1e-9 else f"{value:g}"
+        return f"{symbol}{text}M"
+    if abs_amount >= 1000 and abs(abs_amount % 1000) < 1e-6:
+        value = abs_amount / 1000
+        text = f"{value:.0f}" if abs(value - round(value)) < 1e-9 else f"{value:g}"
+        return f"{symbol}{text}K"
+    return format_currency(amount, currency)
+
+
+def default_content_headline(
+    *,
+    total_periods: int,
+    target_mrr: float,
+    currency: str,
+) -> str:
+    """Auto headline when content.headline is empty: '12 MONTHS TO $10K MRR'."""
+    periods = max(1, int(total_periods))
+    unit = "MONTH" if periods == 1 else "MONTHS"
+    return f"{periods} {unit} TO {format_compact_target(target_mrr, currency)} MRR"
+
+
 def months_between(start: date, end: date) -> int:
     """Whole calendar months from start to end (0 if end <= start month)."""
     return (end.year - start.year) * 12 + (end.month - start.month)

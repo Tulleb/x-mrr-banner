@@ -3,7 +3,8 @@
 Generate a complete X profile banner containing the real business data below.
 
 The output must be the FINAL banner layout (text, status card, progress bar).
-App icon markers are solid pure red ({{ icon_marker_hex }}) squares — real logos replace them afterward.
+App icon slots are solid pure red ({{ icon_marker_hex }}) squares — real app logos replace them afterward.
+Draw App Store and Play Store badges yourself in the image (not chroma placeholders).
 Do not leave other placeholders visible.
 All supplied values must be rendered accurately.
 
@@ -34,8 +35,8 @@ All supplied values must be rendered accurately.
 ### {{ app.name }}
 
 - Current MRR: {{ app.current_mrr_formatted }}
-- Apple App Store MRR: {{ app.apple_mrr_formatted }}
-- Google Play MRR: {{ app.google_mrr_formatted }}
+- App Store MRR: {{ app.apple_mrr_formatted }}
+- Play Store MRR: {{ app.google_mrr_formatted }}
 
 {% endfor %}
 
@@ -64,10 +65,13 @@ Render the following text clearly and exactly.
 {{ content.revenue_label }}
 
 {% if apps %}
-### Apps (render beside each red marker)
+### Apps (render beside each red app-icon marker)
+
+Do NOT write the words Apple, Google, App Store, or Play Store.
+Use small recognizable App Store and Play Store icons next to each store MRR amount.
 
 {% for app in apps %}
-- {{ app.name }} — total {{ app.current_mrr_formatted }} | Apple {{ app.apple_mrr_formatted }} | Google {{ app.google_mrr_formatted }}
+- {{ app.name }} — total {{ app.current_mrr_formatted }} | [App Store icon] {{ app.apple_mrr_formatted }} | [Play Store icon] {{ app.google_mrr_formatted }}
 {% endfor %}
 {% endif %}
 
@@ -100,7 +104,8 @@ Avoid:
 - excessive neon
 - busy patterns
 - photographic imagery
-- any pure red / {{ icon_marker_hex }} except the icon markers
+- any pure {{ icon_marker_hex }} except the app icon markers
+- the words Apple, Google, App Store, or Play Store anywhere on the banner
 
 ## Composition
 
@@ -114,43 +119,42 @@ Show:
 - subheadline
 {% if apps %}
 - apps label: {{ content.apps_label }}
-- for each app: red icon marker + name + per-store MRR (see Red Icon Markers)
+- for each app: red app-icon marker + name + store icons with MRR amounts (see App Icon Markers)
 {% endif %}
 
 The main headline should be the dominant visual element.
 
 {% if apps %}
-### Red Icon Markers
+### App Icon Markers
 
-Real app icons are composited programmatically AFTER generation by detecting these markers.
+Real **app** logos are composited programmatically AFTER generation by detecting red markers.
+**Store** badges (App Store / Play Store) must be drawn by you in the final image — do not use chroma placeholders for stores.
 
-Draw exactly {{ apps|length }} solid rounded squares filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0), left → right:
+For each app below (left → right), draw:
+
+1. One solid rounded square filled with pure {{ icon_marker_hex }} (RGB 255, 0, 0) ≈ 40–56 px — the app icon slot only
+2. Beside it: the app name and total MRR
+3. Under or beside the name, the store split:
+   - a small recognizable **App Store** icon (≈ 14–20 px), then the App Store MRR amount
+   - a small recognizable **Play Store** icon (≈ 14–20 px), then the Play Store MRR amount
 
 {% for app in apps %}
-#### Marker {{ loop.index }} — {{ app.name }}
+#### App {{ loop.index }} — {{ app.name }}
 
-Beside this marker, render exactly:
-
+- App icon marker: {{ icon_marker_hex }} (slot only — leave empty red)
 - App name: {{ app.name }}
 - Total MRR: {{ app.current_mrr_formatted }}
-- Apple: {{ app.apple_mrr_formatted }}
-- Google: {{ app.google_mrr_formatted }}
-
-Layout for this app (compact, readable):
-- red marker on the left
-- app name immediately to the right of the marker
-- under or beside the name, show store split as: `Apple {{ app.apple_mrr_formatted }} · Google {{ app.google_mrr_formatted }}`
-- optionally show total MRR once, smaller, next to the name
+- Store row: `[App Store icon] {{ app.apple_mrr_formatted }}   [Play Store icon] {{ app.google_mrr_formatted }}`
 
 {% endfor %}
 
 Rules:
-- fill MUST be solid pure {{ icon_marker_hex }} — no gradients, no borders, no glow, no texture
-- do not use {{ icon_marker_hex }} / pure red anywhere else on the banner
-- do not draw real logos, glyphs, photos, or text inside the markers
-- place markers in a horizontal row under the apps label (or a tidy vertical list if space is tight)
-- render every Apple / Google MRR value exactly as supplied — do not invent or omit a store
-- markers should be roughly 40–56 px on the final {{ banner.width }}×{{ banner.height }} canvas (scale proportionally)
+- the red app-icon marker fill MUST be solid pure {{ icon_marker_hex }} — no gradients, borders, glow, or texture
+- do not use {{ icon_marker_hex }} / pure red anywhere else
+- do not draw real app logos, glyphs, photos, or text inside the red markers
+- draw clear, recognizable App Store and Play Store icons yourself (blue App Store–style badge / colorful Play Store triangle mark)
+- do not write Apple / Google / App Store / Play Store as words
+- render every MRR amount exactly as supplied
 {% endif %}
 
 ### Right Status Card
@@ -176,10 +180,11 @@ Style:
 Labels (exactly):
 - left, below the track: {{ challenge.start_mrr_formatted }}
 - right, below the track: {{ challenge.target_mrr_formatted }}
+- progress percent below the track: {{ revenue.target_progress_percent }}%
 
-Position the fill and marker at:
+Position the fill and marker at {{ revenue.target_progress_percent }}% of the track width.
 
-{{ revenue.target_progress_percent }}%
+Place the progress percent label directly under the filled portion / marker — horizontally aligned with the thumb, not centered on the full bar. When progress is very small, keep the label near the left fill edge (slightly right of the start label so it stays readable), still under the filled segment — never in the middle of the empty track.
 
 Do not draw a revenue history chart, stacked bars, line chart, or legend.
 
@@ -204,5 +209,6 @@ Therefore:
 
 Generate one complete polished X profile banner.
 
-Leave the pure-red icon markers as specified. Real logos replace those markers afterward.
+Leave only the pure-red **app** icon markers empty. Real app logos replace those afterward.
+App Store and Play Store icons must already be drawn correctly in the image.
 All other content must be publication-ready with no further overlays required.
