@@ -83,8 +83,10 @@ python -m x_mrr_banner setup @args
 Write-Host ""
 Write-Host "→ First banner generation"
 Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+Write-Host "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
 $ans = Read-Host "Generate the first banner now? [Y/n]"
 if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
+  Write-Host "→ Running update --dry-run…"
   python -m x_mrr_banner update --dry-run
   Write-Host ""
   Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"

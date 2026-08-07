@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import gzip
 import io
+import logging
 import os
 import time
 from datetime import date
@@ -12,6 +13,8 @@ import requests
 
 from x_mrr_banner.config import Period
 from x_mrr_banner.dates import apple_frequency, apple_report_date
+
+logger = logging.getLogger(__name__)
 
 
 class AppleStoreError(RuntimeError):
@@ -142,9 +145,13 @@ def fetch_apple_daily_series(
     """Fetch daily proceeds for each day in [start, end]. Missing days → 0."""
     from x_mrr_banner.dates import daterange
 
+    days = list(daterange(start, end))
+    total = len(days)
     result: dict[date, float] = {}
     errors: list[AppleStoreError] = []
-    for day in daterange(start, end):
+    for index, day in enumerate(days, start=1):
+        if index == 1 or index == total or index % 10 == 0:
+            logger.info("  Apple daily %d/%d: %s", index, total, day.isoformat())
         try:
             rows = download_sales_report(period="daily", window_start=day, window_end=day)
             result[day] = sum_apple_proceeds(rows, apple_skus=apple_skus)

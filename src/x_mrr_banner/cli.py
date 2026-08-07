@@ -103,6 +103,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     config = load_config()
     require_banner_config(config)
 
+    logger.info("Starting banner update (period=%s)…", period)
     snapshot = collect_revenues(period, config)
     _log_banner_numbers(config, snapshot)
 

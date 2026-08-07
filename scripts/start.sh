@@ -148,9 +148,11 @@ python -m x_mrr_banner setup "$@"
 echo
 step "First banner generation"
 info "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+info "Revenue APIs + OpenAI can take a minute — progress logs appear after you confirm."
 read -r -p "$(printf '%sGenerate the first banner now? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
 ans=${ans:-Y}
 if [[ "$ans" =~ ^[Yy]$ ]]; then
+  step "Running update --dry-run…"
   python -m x_mrr_banner update --dry-run
   echo
   ok "Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
