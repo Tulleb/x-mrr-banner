@@ -25,10 +25,16 @@ ICON_MARKER_RGB = (255, 0, 0)
 ICON_MARKER_HEX = "#FF0000"
 # Generative models rarely hit exact #FF0000 — tolerate nearby reds.
 _RED_R_MIN, _RED_G_MAX, _RED_B_MAX = 200, 60, 60
+# Looser match for anti-aliased marker edges (pinkish fringe).
+_FRINGE_R_MIN, _FRINGE_G_MAX, _FRINGE_B_MAX = 140, 110, 110
 _MIN_APP_MARKER_AREA = 200
 _MAX_LOGO_SLOTS = 6
 _DEFAULT_ICON_SIZE = 48
-_ICON_CORNER_RATIO = 0.22
+# iOS-like continuous corner (~22–25%); slight bump covers GPT marker rounds.
+_ICON_CORNER_RATIO = 0.25
+# Erase / paste padding so leftover red fringe never peeks past the icon.
+_MARKER_ERASE_PAD = 3
+_ICON_COVER_PAD = 1
 
 ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup"
 _REQUEST_TIMEOUT = 30
@@ -217,10 +223,20 @@ def make_monogram(name: str, size: int = LOGO_SLOT_SIZE) -> Image.Image:
 
 
 def rounded_icon(source: Image.Image, size: int, radius: int | None = None) -> Image.Image:
-    """Resize and apply a rounded-rect alpha mask."""
+    """Resize and apply a rounded-rect alpha mask.
+
+    If the source already has transparent rounded corners (App Store artwork),
+    flatten it onto an opaque square first so a single consistent mask defines
+    the final corner radius — avoids double-radius / red-fringe glitches.
+    """
     corner = radius if radius is not None else max(4, int(size * _ICON_CORNER_RATIO))
-    icon = source.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
+    rgba = source.convert("RGBA")
+    # Composite onto opaque black so pre-rounded artwork doesn't leave holes.
+    flat = Image.new("RGBA", rgba.size, (0, 0, 0, 255))
+    flat.paste(rgba, (0, 0), mask=rgba)
+    icon = flat.resize((size, size), Image.Resampling.LANCZOS)
     mask = Image.new("L", (size, size), 0)
+    # Pillow box coords are inclusive — size-1 reaches the last pixel.
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=corner, fill=255)
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     out.paste(icon, (0, 0), mask=mask)
@@ -277,6 +293,13 @@ def _parse_hex_color(value: str, fallback: tuple[int, int, int] = (11, 13, 16)) 
 
 def _is_marker_red(r: int, g: int, b: int) -> bool:
     return r >= _RED_R_MIN and g <= _RED_G_MAX and b <= _RED_B_MAX
+
+
+def _is_marker_fringe(r: int, g: int, b: int) -> bool:
+    """True for pure marker red or pinkish anti-aliased edges around it."""
+    if _is_marker_red(r, g, b):
+        return True
+    return r >= _FRINGE_R_MIN and g <= _FRINGE_G_MAX and b <= _FRINGE_B_MAX and r > g and r > b
 
 
 def detect_color_blobs(
@@ -350,11 +373,73 @@ def detect_red_marker_blobs(image: Image.Image) -> list[_RedBlob]:
     return detect_color_blobs(image, _is_marker_red, min_area=_MIN_APP_MARKER_AREA)
 
 
-def _erase_blobs(canvas: Image.Image, blobs: list[_RedBlob], bg: tuple[int, int, int]) -> None:
+def _sample_local_bg(
+    canvas: Image.Image,
+    blob: _RedBlob,
+    fallback: tuple[int, int, int],
+) -> tuple[int, int, int]:
+    """Average nearby non-red pixels so erased marker edges match the banner."""
     px = canvas.load()
+    width, height = canvas.size
+    ring = 4
+    samples: list[tuple[int, int, int]] = []
+    x0 = max(0, blob.x - ring)
+    y0 = max(0, blob.y - ring)
+    x1 = min(width - 1, blob.x + blob.width - 1 + ring)
+    y1 = min(height - 1, blob.y + blob.height - 1 + ring)
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            # Prefer the ring just outside the bbox.
+            inside = (
+                blob.x <= x < blob.x + blob.width and blob.y <= y < blob.y + blob.height
+            )
+            if inside:
+                continue
+            r, g, b = px[x, y][:3]
+            if _is_marker_fringe(r, g, b):
+                continue
+            samples.append((r, g, b))
+    if not samples:
+        return fallback
+    n = len(samples)
+    return (
+        sum(s[0] for s in samples) // n,
+        sum(s[1] for s in samples) // n,
+        sum(s[2] for s in samples) // n,
+    )
+
+
+def _erase_blobs(canvas: Image.Image, blobs: list[_RedBlob], bg: tuple[int, int, int]) -> None:
+    """Clear marker pixels, pink fringe, and a padded rounded footprint."""
+    if not blobs:
+        return
+    px = canvas.load()
+    width, height = canvas.size
+    draw = ImageDraw.Draw(canvas)
+
     for blob in blobs:
+        local_bg = _sample_local_bg(canvas, blob, bg)
+        fill = (*local_bg, 255)
         for x, y in blob.pixels:
-            px[x, y] = (*bg, 255)
+            px[x, y] = fill
+
+        pad = _MARKER_ERASE_PAD
+        x0 = max(0, blob.x - pad)
+        y0 = max(0, blob.y - pad)
+        x1 = min(width - 1, blob.x + blob.width - 1 + pad)
+        y1 = min(height - 1, blob.y + blob.height - 1 + pad)
+        side = max(blob.width, blob.height) + pad * 2
+        radius = max(4, int(round(side * _ICON_CORNER_RATIO)) + 2)
+
+        # Wipe reddish anti-aliased edges inside the padded bbox.
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                r, g, b = px[x, y][:3]
+                if _is_marker_fringe(r, g, b):
+                    px[x, y] = fill
+
+        # Solid rounded wipe under where the icon will land.
+        draw.rounded_rectangle((x0, y0, x1, y1), radius=radius, fill=fill)
 
 
 def slots_from_red_markers(
@@ -392,7 +477,8 @@ def slots_from_red_markers(
     for index, name in enumerate(names):
         if index < len(blobs):
             blob = blobs[index]
-            size = max(24, int(round((blob.width + blob.height) / 2)))
+            # Cover pad so the icon overlaps any residual marker fringe.
+            size = max(24, int(round((blob.width + blob.height) / 2)) + _ICON_COVER_PAD * 2)
             cx, cy = blob.center
             slots.append(
                 LogoSlot(
@@ -401,7 +487,7 @@ def slots_from_red_markers(
                     x=cx - size // 2,
                     y=cy - size // 2,
                     size=size,
-                    radius=max(4, int(size * _ICON_CORNER_RATIO)),
+                    radius=max(4, int(round(size * _ICON_CORNER_RATIO))),
                 )
             )
             used.append(blob)
