@@ -61,13 +61,19 @@ def _fetch_app_window(
     start: date,
     end: date,
     app: AppEntry,
+    *,
+    target_currency: str,
 ) -> AppRevenue:
     apple_skus = app.revenue_apple_skus() or None
     packages = app.google_package_names or None
 
     try:
         apple_rev = apple.fetch_apple_revenue(
-            period, start, end, apple_skus=apple_skus
+            period,
+            start,
+            end,
+            apple_skus=apple_skus,
+            target_currency=target_currency,
         )
     except Exception as exc:  # noqa: BLE001
         _warn("App Store Connect", f"app {app.name!r} apple revenue: {exc}")
@@ -93,6 +99,8 @@ def _fetch_apple_history(
     period: Period,
     windows: list[tuple[date, date]],
     apple_skus: list[str] | None,
+    *,
+    target_currency: str,
 ) -> tuple[dict[date, float], dict[tuple[date, date], float]]:
     """Return (daily_map, window_totals). Prefer period reports when not daily."""
     apple_daily: dict[date, float] = {}
@@ -109,7 +117,10 @@ def _fetch_apple_history(
         )
         try:
             apple_daily = apple.fetch_apple_daily_series(
-                history_start, history_end, apple_skus=apple_skus
+                history_start,
+                history_end,
+                apple_skus=apple_skus,
+                target_currency=target_currency,
             )
         except Exception as exc:  # noqa: BLE001 — store failures must not abort the run
             _warn("App Store Connect", f"daily series unavailable ({exc})")
@@ -131,7 +142,11 @@ def _fetch_apple_history(
         )
         try:
             apple_window_totals[(start, end)] = apple.fetch_apple_revenue(
-                period, start, end, apple_skus=apple_skus
+                period,
+                start,
+                end,
+                apple_skus=apple_skus,
+                target_currency=target_currency,
             )
         except Exception as window_exc:  # noqa: BLE001
             _warn(
@@ -147,17 +162,21 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
     windows = history_windows(period, HISTORY_POINTS[period], as_of=as_of)
     history_start = windows[0][0]
     history_end = windows[-1][1]
+    target_currency = config.currency
 
     logger.info(
-        "Fetching revenues for %s → %s (%s, %d history points)",
+        "Fetching revenues for %s → %s (%s, %d history points, currency=%s)",
         primary_start.isoformat(),
         primary_end.isoformat(),
         period,
         len(windows),
+        target_currency,
     )
 
     apple_skus, package_names = _portfolio_filters(config)
-    apple_daily, apple_window_totals = _fetch_apple_history(period, windows, apple_skus)
+    apple_daily, apple_window_totals = _fetch_apple_history(
+        period, windows, apple_skus, target_currency=target_currency
+    )
 
     google_daily: dict[date, float] = {}
     logger.info(
@@ -197,7 +216,11 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
     )
     try:
         apple_revenue = apple.fetch_apple_revenue(
-            period, primary_start, primary_end, apple_skus=apple_skus
+            period,
+            primary_start,
+            primary_end,
+            apple_skus=apple_skus,
+            target_currency=target_currency,
         )
     except Exception as exc:  # noqa: BLE001
         _warn("App Store Connect", f"primary window failed: {exc}")
@@ -218,7 +241,13 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
     for index, app in enumerate(config.apps, start=1):
         logger.info("  App %d/%d: %s", index, len(config.apps), app.name)
         app_revenues.append(
-            _fetch_app_window(period, primary_start, primary_end, app)
+            _fetch_app_window(
+                period,
+                primary_start,
+                primary_end,
+                app,
+                target_currency=target_currency,
+            )
         )
 
     logger.info("Revenue fetch complete.")

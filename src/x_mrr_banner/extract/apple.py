@@ -113,9 +113,22 @@ def _parse_float(value: str | None) -> float:
         return 0.0
 
 
-def sum_apple_proceeds(rows: list[dict[str, str]], apple_skus: list[str] | None = None) -> float:
+def sum_apple_proceeds(
+    rows: list[dict[str, str]],
+    apple_skus: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
+    as_of: date | None = None,
+) -> float:
+    """Sum Developer Proceeds × |Units|, converted into target_currency.
+
+    ASC sales rows use mixed \"Currency of Proceeds\" (USD, EUR, BRL, …). Summing
+    the raw numbers produces fake totals (e.g. BRL 185 counted as $185).
+    """
+    from x_mrr_banner.extract.fx import convert_amount
+
     allowed = set(apple_skus or [])
-    total = 0.0
+    by_currency: dict[str, float] = {}
     for row in rows:
         sku = (row.get("SKU") or row.get("sku") or "").strip()
         if allowed and sku not in allowed:
@@ -123,7 +136,43 @@ def sum_apple_proceeds(rows: list[dict[str, str]], apple_skus: list[str] | None 
         proceeds = row.get("Developer Proceeds") or row.get("developer_proceeds") or "0"
         units = row.get("Units") or row.get("units") or "1"
         # Developer Proceeds is per-unit in sales summary reports.
-        total += _parse_float(proceeds) * abs(_parse_float(units))
+        amount = _parse_float(proceeds) * abs(_parse_float(units))
+        if amount == 0:
+            continue
+        currency = (
+            row.get("Currency of Proceeds")
+            or row.get("currency_of_proceeds")
+            or target_currency
+        ).strip().upper() or target_currency.upper()
+        by_currency[currency] = by_currency.get(currency, 0.0) + amount
+
+    if not by_currency:
+        return 0.0
+
+    on = as_of or date.today()
+    target = target_currency.strip().upper() or "USD"
+    total = 0.0
+    converted_parts: list[str] = []
+    for currency, amount in sorted(by_currency.items()):
+        try:
+            converted = convert_amount(amount, currency, target, on=on)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Apple FX %s→%s failed for %.2f (%s); leaving unconverted",
+                currency,
+                target,
+                amount,
+                exc,
+            )
+            converted = amount if currency == target else 0.0
+        total += converted
+        if currency == target:
+            converted_parts.append(f"{amount:.2f} {currency}")
+        else:
+            converted_parts.append(f"{amount:.2f} {currency}→{converted:.2f} {target}")
+
+    if len(by_currency) > 1 or next(iter(by_currency.keys())) != target:
+        logger.info("Apple proceeds: %s (total %.2f %s)", "; ".join(converted_parts), total, target)
     return total
 
 
@@ -132,15 +181,24 @@ def fetch_apple_revenue(
     window_start: date,
     window_end: date,
     apple_skus: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
 ) -> float:
     rows = download_sales_report(period=period, window_start=window_start, window_end=window_end)
-    return sum_apple_proceeds(rows, apple_skus=apple_skus)
+    return sum_apple_proceeds(
+        rows,
+        apple_skus=apple_skus,
+        target_currency=target_currency,
+        as_of=window_end,
+    )
 
 
 def fetch_apple_daily_series(
     start: date,
     end: date,
     apple_skus: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
 ) -> dict[date, float]:
     """Fetch daily proceeds for each day in [start, end]. Missing days → 0."""
     from x_mrr_banner.dates import daterange
@@ -154,7 +212,12 @@ def fetch_apple_daily_series(
             logger.info("  Apple daily %d/%d: %s", index, total, day.isoformat())
         try:
             rows = download_sales_report(period="daily", window_start=day, window_end=day)
-            result[day] = sum_apple_proceeds(rows, apple_skus=apple_skus)
+            result[day] = sum_apple_proceeds(
+                rows,
+                apple_skus=apple_skus,
+                target_currency=target_currency,
+                as_of=day,
+            )
         except AppleStoreError as exc:
             errors.append(exc)
             result[day] = 0.0
