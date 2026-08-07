@@ -1,0 +1,17 @@
+# Enable only the schedules you want the GitHub Action to actually run.
+# Disabled periods exit successfully without fetching revenue or uploading.
+schedules:
+  daily: false
+  weekly: false
+  monthly: true
+
+# When false, crons/update still fetch + compose the banner (and CI uploads an
+# artifact) but skip calling the X API. Set true once X credentials are ready.
+upload_to_x: false
+
+# Display / aggregation currency label (reports may still be multi-currency).
+currency: USD
+
+# Optional: restrict to these Apple SKUs / Google package names (empty = all).
+apple_skus: []
+google_package_names: []

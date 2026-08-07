@@ -1,0 +1,98 @@
+name: Update X banner
+
+on:
+  schedule:
+    # Daily at 06:00 UTC
+    - cron: "0 6 * * *"
+    # Weekly Monday 06:00 UTC
+    - cron: "0 6 * * 1"
+    # Monthly on the 1st at 06:00 UTC
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      period:
+        description: Reporting period to update
+        required: true
+        type: choice
+        options:
+          - daily
+          - weekly
+          - monthly
+      force:
+        description: Run even if period is disabled in config.yaml
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: Compose banner but skip X upload
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  update-banner:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve period
+        id: period
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PERIOD="${{ inputs.period }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "0 6 * * *") PERIOD="daily" ;;
+              "0 6 * * 1") PERIOD="weekly" ;;
+              "0 6 1 * *") PERIOD="monthly" ;;
+              *)
+                echo "Unknown schedule cron: ${{ github.event.schedule }}"
+                exit 1
+                ;;
+            esac
+          fi
+          echo "period=${PERIOD}" >> "$GITHUB_OUTPUT"
+          echo "Resolved period: ${PERIOD}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: pip install .
+
+      - name: Run update
+        env:
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_VENDOR_NUMBER: ${{ secrets.ASC_VENDOR_NUMBER }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_PLAY_REPORTS_BUCKET: ${{ secrets.GOOGLE_PLAY_REPORTS_BUCKET }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: |
+          ARGS=(update --period "${{ steps.period.outputs.period }}")
+          if [ "${{ inputs.force }}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          python -m x_mrr_banner "${ARGS[@]}"
+
+      - name: Upload banner artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: banner-${{ steps.period.outputs.period }}
+          path: output/banner.png
+          if-no-files-found: ignore
