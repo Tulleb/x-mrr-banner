@@ -3,7 +3,14 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
-from x_mrr_banner.config import AppConfig, Period, RevenueSnapshot, SeriesPoint
+from x_mrr_banner.config import (
+    AppConfig,
+    AppEntry,
+    AppRevenue,
+    Period,
+    RevenueSnapshot,
+    SeriesPoint,
+)
 from x_mrr_banner.dates import history_windows, period_window
 from x_mrr_banner.extract import apple, google_play
 
@@ -42,11 +49,53 @@ def _warn(source: str, message: str) -> None:
     print(f"::warning title={source}::{safe}", flush=True)
 
 
+def _portfolio_filters(config: AppConfig) -> tuple[list[str] | None, list[str] | None]:
+    """Return SKU/package filters for portfolio totals (None = unfiltered)."""
+    skus = config.all_apple_skus()
+    packages = config.all_google_package_names()
+    return (skus or None, packages or None)
+
+
+def _fetch_app_window(
+    period: Period,
+    start: date,
+    end: date,
+    app: AppEntry,
+) -> AppRevenue:
+    apple_skus = app.revenue_apple_skus() or None
+    packages = app.google_package_names or None
+
+    try:
+        apple_rev = apple.fetch_apple_revenue(
+            period, start, end, apple_skus=apple_skus
+        )
+    except Exception as exc:  # noqa: BLE001
+        _warn("App Store Connect", f"app {app.name!r} apple revenue: {exc}")
+        apple_rev = 0.0
+
+    try:
+        google_rev = google_play.fetch_google_revenue(
+            start, end, package_names=packages
+        )
+    except Exception as exc:  # noqa: BLE001
+        _warn("Google Play", f"app {app.name!r} google revenue: {exc}")
+        google_rev = 0.0
+
+    return AppRevenue(
+        name=app.name,
+        apple_revenue=apple_rev,
+        google_revenue=google_rev,
+        total_revenue=apple_rev + google_rev,
+    )
+
+
 def collect_revenues(period: Period, config: AppConfig, as_of: date | None = None) -> RevenueSnapshot:
     primary_start, primary_end = period_window(period, as_of=as_of)
     windows = history_windows(period, HISTORY_POINTS[period], as_of=as_of)
     history_start = windows[0][0]
     history_end = windows[-1][1]
+
+    apple_skus, package_names = _portfolio_filters(config)
 
     apple_daily: dict[date, float] = {}
     google_daily: dict[date, float] = {}
@@ -54,14 +103,14 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
 
     try:
         apple_daily = apple.fetch_apple_daily_series(
-            history_start, history_end, apple_skus=config.apple_skus
+            history_start, history_end, apple_skus=apple_skus
         )
     except Exception as exc:  # noqa: BLE001 — store failures must not abort the run
         _warn("App Store Connect", f"daily series unavailable ({exc}); trying period reports")
         for start, end in windows:
             try:
                 apple_window_totals[(start, end)] = apple.fetch_apple_revenue(
-                    period, start, end, apple_skus=config.apple_skus
+                    period, start, end, apple_skus=apple_skus
                 )
             except Exception as window_exc:  # noqa: BLE001
                 _warn(
@@ -72,7 +121,7 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
 
     try:
         google_daily = google_play.fetch_google_daily_series(
-            history_start, history_end, package_names=config.google_package_names
+            history_start, history_end, package_names=package_names
         )
     except Exception as exc:  # noqa: BLE001
         _warn("Google Play", f"series unavailable: {exc}")
@@ -96,7 +145,7 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
 
     try:
         apple_revenue = apple.fetch_apple_revenue(
-            period, primary_start, primary_end, apple_skus=config.apple_skus
+            period, primary_start, primary_end, apple_skus=apple_skus
         )
     except Exception as exc:  # noqa: BLE001
         _warn("App Store Connect", f"primary window failed: {exc}")
@@ -104,11 +153,17 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
 
     try:
         google_revenue = google_play.fetch_google_revenue(
-            primary_start, primary_end, package_names=config.google_package_names
+            primary_start, primary_end, package_names=package_names
         )
     except Exception as exc:  # noqa: BLE001
         _warn("Google Play", f"primary window failed: {exc}")
         google_revenue = series[-1].google_revenue if series else 0.0
+
+    app_revenues: list[AppRevenue] = []
+    for app in config.apps:
+        app_revenues.append(
+            _fetch_app_window(period, primary_start, primary_end, app)
+        )
 
     return RevenueSnapshot(
         period=period,
@@ -119,4 +174,5 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
         google_revenue=google_revenue,
         total_revenue=apple_revenue + google_revenue,
         series=series,
+        apps=app_revenues,
     )

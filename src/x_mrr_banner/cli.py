@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 
+from x_mrr_banner.banner.context import build_banner_context, render_banner_prompt
+from x_mrr_banner.banner.generate import generate_banner
 from x_mrr_banner.config import (
-    BANNER_OUTPUT_PATH,
+    AppConfig,
+    RevenueSnapshot,
+    format_currency,
     load_config,
     load_dotenv_files,
+    output_paths_for_month,
     parse_period,
-    require_template_assets,
+    require_banner_config,
 )
 from x_mrr_banner.extract.aggregate import collect_revenues
-from x_mrr_banner.render.compose import compose_banner
 from x_mrr_banner.setup_wizard import run_setup
-from x_mrr_banner.template.generate import generate_template
 from x_mrr_banner.upload.x_banner import upload_banner
 
 logging.basicConfig(
@@ -24,30 +26,94 @@ logging.basicConfig(
 logger = logging.getLogger("x_mrr_banner")
 
 
+def _log_banner_numbers(config: AppConfig, snapshot: RevenueSnapshot) -> None:
+    """Log every figure that will be rendered into BANNER.md.j2."""
+    currency = snapshot.currency
+    ctx = build_banner_context(config, snapshot)
+
+    logger.info("======== Banner numbers (will appear on the image) ========")
+    logger.info(
+        "Period window: %s → %s (%s / %s)",
+        snapshot.period_start.isoformat(),
+        snapshot.period_end.isoformat(),
+        snapshot.period,
+        ctx["content"]["period_label"],
+    )
+    logger.info(
+        "Portfolio current: total=%s apple=%s google=%s %s",
+        format_currency(snapshot.total_revenue, currency),
+        format_currency(snapshot.apple_revenue, currency),
+        format_currency(snapshot.google_revenue, currency),
+        currency,
+    )
+    logger.info(
+        "Challenge: period %s/%s | start=%s target=%s | progress=%s%%",
+        ctx["challenge"]["current_period"],
+        ctx["challenge"]["total_periods"],
+        ctx["challenge"]["start_mrr_formatted"],
+        ctx["challenge"]["target_mrr_formatted"],
+        ctx["revenue"]["target_progress_percent"],
+    )
+    logger.info(
+        "Content labels: top=%r headline=%r period=%r revenue=%r",
+        ctx["content"]["top_label"],
+        ctx["content"]["headline"],
+        ctx["content"]["period_label"],
+        ctx["content"]["revenue_label"],
+    )
+
+    if not snapshot.apps:
+        logger.info("Apps: (none configured — no per-app breakdown)")
+    else:
+        logger.info("Apps (%d):", len(snapshot.apps))
+        for app_cfg, app_rev in zip(config.apps, snapshot.apps, strict=False):
+            filters = app_cfg.revenue_apple_skus()
+            logger.info(
+                "  • %s: total=%s apple=%s google=%s | apple_skus=%s iap_skus=%s play=%s",
+                app_rev.name,
+                format_currency(app_rev.total_revenue, currency),
+                format_currency(app_rev.apple_revenue, currency),
+                format_currency(app_rev.google_revenue, currency),
+                app_cfg.apple_skus or ["(none)"],
+                app_cfg.apple_iap_skus or ["(none)"],
+                app_cfg.google_package_names or ["(none)"],
+            )
+            if filters:
+                logger.info("    ASC filter SKUs used: %s", filters)
+
+    if not snapshot.series:
+        logger.info("Revenue history: (empty)")
+    else:
+        logger.info("Revenue history (%d points, chronological):", len(snapshot.series))
+        for point in snapshot.series:
+            logger.info(
+                "  • %s (%s): apple=%s google=%s total=%s",
+                point.label,
+                point.date.isoformat(),
+                format_currency(point.apple_revenue, currency),
+                format_currency(point.google_revenue, currency),
+                format_currency(point.total_revenue, currency),
+            )
+
+    logger.info("===========================================================")
+
+
 def cmd_update(args: argparse.Namespace) -> int:
     period = parse_period("monthly")
     config = load_config()
-
-    try:
-        require_template_assets()
-    except FileNotFoundError as exc:
-        logger.error("%s", exc)
-        return 1
+    require_banner_config(config)
 
     snapshot = collect_revenues(period, config)
-    logger.info(
-        "Revenues for %s (%s → %s): total=%.2f apple=%.2f google=%.2f %s",
-        snapshot.period,
-        snapshot.period_start,
-        snapshot.period_end,
-        snapshot.total_revenue,
-        snapshot.apple_revenue,
-        snapshot.google_revenue,
-        snapshot.currency,
-    )
+    _log_banner_numbers(config, snapshot)
 
-    output = compose_banner(snapshot, output_path=BANNER_OUTPUT_PATH)
-    logger.info("Composed banner at %s", output)
+    prompt = render_banner_prompt(config, snapshot)
+    banner_png, banner_md = output_paths_for_month(snapshot.period_start)
+    banner_md.parent.mkdir(parents=True, exist_ok=True)
+    banner_md.write_text(prompt, encoding="utf-8")
+    logger.info("Wrote rendered prompt (%d chars) → %s", len(prompt), banner_md)
+
+    output = generate_banner(prompt, destination=banner_png)
+    logger.info("Generated banner at %s", output)
 
     should_upload = config.upload_to_x and not args.dry_run
     if args.upload:
@@ -58,13 +124,6 @@ def cmd_update(args: argparse.Namespace) -> int:
         return 0
 
     upload_banner(output)
-    return 0
-
-
-def cmd_generate_template(args: argparse.Namespace) -> int:
-    background, layout = generate_template(overwrite=args.overwrite)
-    logger.info("Template ready: %s , %s", background, layout)
-    logger.info("Commit assets/template/ so GitHub Actions can use it.")
     return 0
 
 
@@ -83,11 +142,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    update = sub.add_parser("update", help="Fetch revenues, compose banner, upload to X")
+    update = sub.add_parser(
+        "update",
+        help="Fetch revenues, render BANNER.md.j2, generate banner via OpenAI, upload to X",
+    )
     update.add_argument(
         "--dry-run",
         action="store_true",
-        help="Compose the banner but do not upload to X",
+        help="Generate the banner but do not upload to X",
     )
     update.add_argument(
         "--upload",
@@ -96,20 +158,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     update.set_defaults(func=cmd_update)
 
-    generate = sub.add_parser(
-        "generate_template",
-        help="Local-only: create assets/template via OpenAI gpt-image-1",
-    )
-    generate.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Overwrite an existing background/layout",
-    )
-    generate.set_defaults(func=cmd_generate_template)
-
     setup = sub.add_parser(
         "setup",
-        help="Interactive wizard: write .env and sync GitHub Actions secrets",
+        help="Interactive wizard: write .env, config.yaml preferences, and sync GitHub secrets",
     )
     setup.add_argument(
         "--local-only",
@@ -124,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     setup.add_argument(
         "--skip-config",
         action="store_true",
-        help="Do not prompt to update config.yaml (upload_to_x / currency)",
+        help="Do not prompt to update config.yaml preferences",
     )
     setup.set_defaults(func=cmd_setup)
 

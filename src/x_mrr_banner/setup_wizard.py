@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 ENV_PATH = REPO_ROOT / ".env"
 
-# Secrets that belong in GitHub Actions (CI never needs OpenAI).
+# Secrets that belong in GitHub Actions (including OpenAI for full-banner generation).
 GITHUB_SECRET_KEYS = (
     "ASC_ISSUER_ID",
     "ASC_KEY_ID",
@@ -37,6 +37,7 @@ GITHUB_SECRET_KEYS = (
     "X_API_SECRET",
     "X_ACCESS_TOKEN",
     "X_ACCESS_TOKEN_SECRET",
+    "OPENAI_API_KEY",
 )
 
 
@@ -71,8 +72,23 @@ class Section:
     configure_prompt: str | None = None
 
 
-def _print_header(title: str) -> None:
+def _print_header(title: str, *, step: tuple[int, int] | None = None) -> None:
+    if step is not None:
+        current, total = step
+        title = f"{current}/{total}  {title}"
     ui.header(title)
+
+
+class _WizardProgress:
+    """Tracks setup wizard step indices (e.g. 3/9)."""
+
+    def __init__(self, total: int) -> None:
+        self.total = max(1, total)
+        self.current = 0
+
+    def header(self, title: str) -> None:
+        self.current += 1
+        _print_header(title, step=(self.current, self.total))
 
 
 def _print_intro(text: str) -> None:
@@ -523,12 +539,13 @@ def _sections(*, include_x: bool, include_openai: bool) -> list[Section]:
     if include_openai:
         sections.append(
             Section(
-                name="OpenAI (local template only)",
-                optional=True,
-                configure_prompt="Configure OpenAI API key for local template generation?",
+                name="OpenAI",
+                optional=False,
+                configure_prompt="Configure OpenAI API key for banner generation?",
                 intro=(
-                    "Used only by `generate_template` on your machine (gpt-image-1).\n"
-                    "Not uploaded to GitHub Actions secrets."
+                    "OpenAI generates the final X profile banner from the rendered\n"
+                    "inputs/BANNER.md.j2 prompt (live revenues + your preferences).\n"
+                    "Synced to GitHub Actions so the monthly workflow can regenerate the banner."
                 ),
                 fields=[
                     FieldSpec(
@@ -618,52 +635,532 @@ def _load_config_raw() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def update_config_from_prompts() -> None:
-    _print_header("Upload preferences (config.yaml)")
-    raw = _load_config_raw()
-    has_upload = "upload_to_x" in raw
-    currency_existing = str(raw.get("currency") or "").strip()
-    already_set = has_upload and bool(currency_existing)
+def _prompt_text(question: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    value = input(ui.prompt(f"{question}{suffix}: ")).strip()
+    return value or default
 
-    if already_set:
-        upload_label = "true" if raw.get("upload_to_x") else "false"
+
+def _prompt_choice(question: str, choices: tuple[str, ...], default: str) -> str:
+    ui.info(f"  Options: {', '.join(choices)}")
+    while True:
+        value = _prompt_text(question, default).strip().lower().replace(" ", "_")
+        if value in choices:
+            return value
+        ui.warn(f"Choose one of: {', '.join(choices)}")
+
+
+def _prompt_float(question: str, default: float) -> float:
+    while True:
+        raw = _prompt_text(question, str(default))
+        try:
+            return float(raw)
+        except ValueError:
+            ui.warn("Enter a number.")
+
+
+def _prompt_int(question: str, default: int) -> int:
+    while True:
+        raw = _prompt_text(question, str(default))
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            ui.warn("Enter a whole number.")
+
+
+def _prompt_iso_date(question: str, default: str) -> str:
+    while True:
+        raw = _prompt_text(question, default)
+        try:
+            from datetime import date as date_cls
+
+            date_cls.fromisoformat(raw)
+            return raw
+        except ValueError:
+            ui.warn("Use ISO date YYYY-MM-DD.")
+
+
+def _yaml_quote(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _write_config_yaml(
+    *,
+    upload_to_x: bool,
+    currency: str,
+    challenge: dict,
+    content: dict,
+    theme: dict,
+    apps: list[dict],
+) -> None:
+    lines = [
+        "# When false, update still generates the banner (and CI uploads an",
+        "# artifact) but skip calling the X API. Set true once X credentials are ready.",
+        f"upload_to_x: {'true' if upload_to_x else 'false'}",
+        "",
+        "# Display / aggregation currency label (reports may still be multi-currency).",
+        f"currency: {currency}",
+        "",
+        "# Challenge / progress preferences used by inputs/BANNER.md.j2",
+        "challenge:",
+        f"  headline: {_yaml_quote(challenge['headline'])}",
+        f"  start_date: {_yaml_quote(challenge['start_date'])}",
+        f"  deadline: {_yaml_quote(challenge['deadline'])}",
+        f"  total_periods: {challenge['total_periods']}",
+        f"  start_mrr: {challenge['start_mrr']}",
+        f"  target_mrr: {challenge['target_mrr']}",
+        "",
+        "# Banner copy (period_label / revenue_label are filled from live data at update time)",
+        "content:",
+        f"  top_label: {_yaml_quote(content['top_label'])}",
+        f"  headline: {_yaml_quote(content['headline'])}",
+        f"  subheadline: {_yaml_quote(content['subheadline'])}",
+        f"  apps_label: {_yaml_quote(content['apps_label'])}",
+        "",
+        "# Visual direction for the OpenAI banner prompt",
+        "theme:",
+        f"  mood: {_yaml_quote(theme['mood'])}",
+        f"  style: {_yaml_quote(theme['style'])}",
+        f"  color_mode: {theme['color_mode']}",
+        f"  background_color: {_yaml_quote(theme['background_color'])}",
+        f"  primary_color: {_yaml_quote(theme['primary_color'])}",
+        f"  accent_color: {_yaml_quote(theme['accent_color'])}",
+        f"  text_color: {_yaml_quote(theme['text_color'])}",
+        f"  chart_color: {_yaml_quote(theme['chart_color'])}",
+        "",
+        "# Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)",
+        "apps:",
+    ]
+    if not apps:
+        lines.append("  []")
+    else:
+        for app in apps:
+            lines.append(f"  - name: {_yaml_quote(app['name'])}")
+            skus = app.get("apple_skus") or []
+            iap_skus = app.get("apple_iap_skus") or []
+            packages = app.get("google_package_names") or []
+            if skus:
+                lines.append("    apple_skus:")
+                for sku in skus:
+                    lines.append(f"      - {_yaml_quote(sku)}")
+            else:
+                lines.append("    apple_skus: []")
+            if iap_skus:
+                lines.append("    # IAP / subscription Product IDs (SKU column in ASC sales reports)")
+                lines.append("    apple_iap_skus:")
+                for sku in iap_skus:
+                    lines.append(f"      - {_yaml_quote(sku)}")
+            else:
+                lines.append("    apple_iap_skus: []")
+            if packages:
+                lines.append("    google_package_names:")
+                for package in packages:
+                    lines.append(f"      - {_yaml_quote(package)}")
+            else:
+                lines.append("    google_package_names: []")
+    lines.append("")
+    DEFAULT_CONFIG_PATH.write_text("\n".join(lines), encoding="utf-8")
+
+
+_DEFAULT_CHALLENGE = {
+    "headline": "$10k MRR Challenge",
+    "start_date": "2026-01-01",
+    "deadline": "2026-12-31",
+    "total_periods": 12,
+    "start_mrr": 0.0,
+    "target_mrr": 10000.0,
+}
+
+_DEFAULT_CONTENT = {
+    "top_label": "PUBLIC BUILD LOG",
+    "headline": "",
+    "subheadline": "Building in public toward the target",
+    "apps_label": "Apps in progress",
+}
+
+_DEFAULT_THEME = {
+    "mood": "confident and clean",
+    "style": "minimal geometric with soft gradients",
+    "color_mode": "dark",
+    "background_color": "#0B0D10",
+    "primary_color": "#4F8CFF",
+    "accent_color": "#7CFFB2",
+    "text_color": "#FFFFFF",
+    "chart_color": "#7CFFB2",
+}
+
+
+def _seed_config_state(raw: dict) -> dict:
+    upload = _existing_upload(raw)
+    apps = _existing_apps(raw)
+    return {
+        "upload_to_x": upload[0] if upload else False,
+        "currency": upload[1] if upload else "USD",
+        "challenge": _existing_challenge(raw) or dict(_DEFAULT_CHALLENGE),
+        "content": _existing_content(raw) or dict(_DEFAULT_CONTENT),
+        "theme": _existing_theme(raw) or dict(_DEFAULT_THEME),
+        "apps": list(apps if apps is not None else []),
+    }
+
+
+def _persist_config_state(state: dict, *, reason: str) -> None:
+    """Rewrite config.yaml after each wizard step so Ctrl+C keeps progress."""
+    _write_config_yaml(
+        upload_to_x=bool(state["upload_to_x"]),
+        currency=str(state["currency"]),
+        challenge=state["challenge"],
+        content=state["content"],
+        theme=state["theme"],
+        apps=state["apps"],
+    )
+    ui.ok(f"Saved {DEFAULT_CONFIG_PATH.relative_to(REPO_ROOT)} ({reason})")
+
+
+def _existing_upload(raw: dict) -> tuple[bool, str] | None:
+    if "upload_to_x" not in raw:
+        return None
+    currency = str(raw.get("currency") or "").strip()
+    if not currency:
+        return None
+    return bool(raw.get("upload_to_x", False)), currency
+
+
+def _existing_challenge(raw: dict) -> dict | None:
+    existing = raw.get("challenge") if isinstance(raw.get("challenge"), dict) else {}
+    if not (str(existing.get("headline") or "").strip() and existing.get("start_date")):
+        return None
+    return {
+        "headline": str(existing.get("headline") or ""),
+        "start_date": str(existing.get("start_date") or ""),
+        "deadline": str(existing.get("deadline") or ""),
+        "total_periods": int(existing.get("total_periods") or 12),
+        "start_mrr": float(existing.get("start_mrr") or 0),
+        "target_mrr": float(existing.get("target_mrr") or 0),
+    }
+
+
+def _existing_content(raw: dict) -> dict | None:
+    existing = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+    if not str(existing.get("top_label") or "").strip():
+        return None
+    return {
+        "top_label": str(existing.get("top_label") or ""),
+        "headline": str(existing.get("headline") or ""),
+        "subheadline": str(existing.get("subheadline") or ""),
+        "apps_label": str(existing.get("apps_label") or ""),
+    }
+
+
+def _existing_theme(raw: dict) -> dict | None:
+    existing = raw.get("theme") if isinstance(raw.get("theme"), dict) else {}
+    if not (str(existing.get("mood") or "").strip() and existing.get("primary_color")):
+        return None
+    return {
+        "mood": str(existing.get("mood") or "confident and clean"),
+        "style": str(existing.get("style") or "minimal geometric with soft gradients"),
+        "color_mode": str(existing.get("color_mode") or "dark"),
+        "background_color": str(existing.get("background_color") or "#0B0D10"),
+        "primary_color": str(existing.get("primary_color") or "#4F8CFF"),
+        "accent_color": str(existing.get("accent_color") or "#7CFFB2"),
+        "text_color": str(existing.get("text_color") or "#FFFFFF"),
+        "chart_color": str(existing.get("chart_color") or "#7CFFB2"),
+    }
+
+
+def _existing_apps(raw: dict) -> list[dict] | None:
+    """Return apps list when the key was written before (including empty [])."""
+    if "apps" not in raw:
+        return None
+    if not isinstance(raw.get("apps"), list):
+        return None
+    return [
+        {
+            "name": str(a.get("name") or ""),
+            "apple_skus": [str(s) for s in (a.get("apple_skus") or [])],
+            "apple_iap_skus": [str(s) for s in (a.get("apple_iap_skus") or [])],
+            "google_package_names": [str(s) for s in (a.get("google_package_names") or [])],
+        }
+        for a in raw["apps"]
+        if isinstance(a, dict) and a.get("name")
+    ]
+
+
+def _collect_upload_prefs(raw: dict, *, progress: _WizardProgress | None = None) -> tuple[bool, str]:
+    (progress.header if progress else _print_header)("Upload preferences (config.yaml)")
+    existing = _existing_upload(raw)
+    if existing is not None:
+        upload_existing, currency_existing = existing
         ui.ok(
-            f"Already configured (upload_to_x={upload_label}, currency={currency_existing})"
+            f"Current values: upload_to_x={str(upload_existing).lower()}, "
+            f"currency={currency_existing}"
         )
-        if not _prompt_yes_no("Reconfigure Upload preferences?", default=False):
-            _advance_after_step("Upload preferences look good — nice work!")
-            return
-        ui.info("Reconfiguring Upload preferences.")
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping Upload preferences — nice work!")
+            return upload_existing, currency_existing
+        ui.info("Updating Upload preferences.")
 
+    currency_existing = existing[1] if existing else ""
     upload = _prompt_yes_no(
-        "Upload composed banners to X automatically?",
+        "Upload generated banners to X automatically?",
         default=bool(raw.get("upload_to_x", False)),
     )
-    currency_default = currency_existing or "USD"
-    currency = input(
-        ui.prompt(f"Display currency [{currency_default}]: ")
-    ).strip() or currency_default
-    raw["upload_to_x"] = upload
-    raw["currency"] = currency
-    raw.setdefault("apple_skus", [])
-    raw.setdefault("google_package_names", [])
-
-    # Preserve comments by rewriting a clean documented file.
-    content = (
-        "# When false, update still fetch + compose the banner (and CI uploads an\n"
-        "# artifact) but skip calling the X API. Set true once X credentials are ready.\n"
-        f"upload_to_x: {'true' if upload else 'false'}\n"
-        "\n"
-        "# Display / aggregation currency label (reports may still be multi-currency).\n"
-        f"currency: {currency}\n"
-        "\n"
-        "# Optional: restrict to these Apple SKUs / Google package names (empty = all).\n"
-        "apple_skus: []\n"
-        "google_package_names: []\n"
-    )
-    DEFAULT_CONFIG_PATH.write_text(content, encoding="utf-8")
-    ui.ok(f"Wrote {DEFAULT_CONFIG_PATH.relative_to(REPO_ROOT)}")
+    currency = _prompt_text("Display currency", currency_existing or "USD")
     _advance_after_step("Upload preferences saved — great job!")
+    return upload, currency
+
+
+def _collect_challenge(raw: dict, *, progress: _WizardProgress | None = None) -> dict:
+    (progress.header if progress else _print_header)("Challenge preferences")
+    existing = _existing_challenge(raw)
+    if existing is not None:
+        ui.ok(
+            f"Current values: headline={existing['headline']!r}, "
+            f"{existing['start_date']} → {existing['deadline']}, "
+            f"target_mrr={existing['target_mrr']}"
+        )
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping Challenge preferences — nice work!")
+            return existing
+        ui.info("Updating Challenge preferences.")
+
+    defaults = existing or {}
+    challenge = {
+        "headline": _prompt_text(
+            "Challenge headline",
+            str(defaults.get("headline") or "$10k MRR Challenge"),
+        ),
+        "start_date": _prompt_iso_date(
+            "Start date (YYYY-MM-DD)",
+            str(defaults.get("start_date") or "2026-01-01"),
+        ),
+        "deadline": _prompt_iso_date(
+            "Deadline (YYYY-MM-DD)",
+            str(defaults.get("deadline") or "2026-12-31"),
+        ),
+        "total_periods": _prompt_int(
+            "Total periods (months)",
+            int(defaults.get("total_periods") or 12),
+        ),
+        "start_mrr": _prompt_float(
+            "Starting MRR",
+            float(defaults.get("start_mrr") or 0),
+        ),
+        "target_mrr": _prompt_float(
+            "Target MRR",
+            float(defaults.get("target_mrr") or 10000),
+        ),
+    }
+    _advance_after_step("Challenge preferences saved — great job!")
+    return challenge
+
+
+def _collect_content(
+    raw: dict, challenge: dict, *, progress: _WizardProgress | None = None
+) -> dict:
+    (progress.header if progress else _print_header)("Banner content")
+    existing = _existing_content(raw)
+    if existing is not None:
+        ui.ok(
+            f"Current values: top_label={existing['top_label']!r}, "
+            f"apps_label={existing['apps_label']!r}"
+        )
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping Banner content — nice work!")
+            return existing
+        ui.info("Updating Banner content.")
+
+    defaults = existing or {}
+    content = {
+        "top_label": _prompt_text(
+            "Top label",
+            str(defaults.get("top_label") or "PUBLIC BUILD LOG"),
+        ),
+        "headline": _prompt_text(
+            "Main headline",
+            str(defaults.get("headline") or challenge.get("headline") or ""),
+        ),
+        "subheadline": _prompt_text(
+            "Subheadline",
+            str(defaults.get("subheadline") or "Building in public toward the target"),
+        ),
+        "apps_label": _prompt_text(
+            "Apps line",
+            str(defaults.get("apps_label") or "Apps in progress"),
+        ),
+    }
+    _advance_after_step("Content preferences saved — great job!")
+    return content
+
+
+def _collect_theme(raw: dict, *, progress: _WizardProgress | None = None) -> dict:
+    (progress.header if progress else _print_header)("Theme preferences")
+    existing = _existing_theme(raw)
+    if existing is not None:
+        ui.ok(
+            f"Current values: mood={existing['mood']!r}, "
+            f"color_mode={existing['color_mode']}, "
+            f"primary={existing['primary_color']}"
+        )
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping Theme preferences — nice work!")
+            return existing
+        ui.info("Updating Theme preferences.")
+
+    defaults = existing or {}
+    color_mode = _prompt_choice(
+        "Color mode",
+        ("dark", "light"),
+        str(defaults.get("color_mode") or "dark"),
+    )
+    default_bg = "#0B0D10" if color_mode == "dark" else "#F5F7FA"
+    default_text = "#FFFFFF" if color_mode == "dark" else "#111111"
+    accent = _prompt_text("Accent color (hex)", str(defaults.get("accent_color") or "#7CFFB2"))
+    theme = {
+        "mood": _prompt_text(
+            "Mood (e.g. confident, calm, playful)",
+            str(defaults.get("mood") or "confident and clean"),
+        ),
+        "style": _prompt_text(
+            "Visual style",
+            str(defaults.get("style") or "minimal geometric with soft gradients"),
+        ),
+        "color_mode": color_mode,
+        "background_color": _prompt_text(
+            "Background color (hex)",
+            str(defaults.get("background_color") or default_bg),
+        ),
+        "primary_color": _prompt_text(
+            "Primary brand color (hex)",
+            str(defaults.get("primary_color") or "#4F8CFF"),
+        ),
+        "accent_color": accent,
+        "text_color": _prompt_text(
+            "Text color (hex)",
+            str(defaults.get("text_color") or default_text),
+        ),
+        "chart_color": _prompt_text(
+            "Chart color (hex)",
+            str(defaults.get("chart_color") or accent),
+        ),
+    }
+    _advance_after_step("Theme preferences saved — great job!")
+    return theme
+
+
+def _parse_csv_list(raw: str) -> list[str]:
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _collect_apps(raw: dict, *, progress: _WizardProgress | None = None) -> list[dict]:
+    (progress.header if progress else _print_header)("Apps")
+    existing_configured = _existing_apps(raw)
+    existing_apps = existing_configured if existing_configured is not None else []
+
+    if existing_configured is not None:
+        if existing_apps:
+            names = ", ".join(a["name"] for a in existing_apps)
+            ui.ok(f"Current values: {len(existing_apps)} app(s) — {names}")
+        else:
+            ui.ok("Current values: no per-app breakdown (portfolio totals only)")
+        if not _prompt_yes_no("Change current values?", default=False):
+            _advance_after_step("Keeping Apps — nice work!")
+            return existing_apps
+        ui.info("Updating Apps.")
+
+    ui.info("Add apps for per-app MRR on the banner. Leave count at 0 for portfolio totals only.")
+    print()
+    default_count = str(len(existing_apps)) if existing_apps else "0"
+    count = 0
+    while True:
+        raw_count = _prompt_text("How many apps to configure", default_count)
+        try:
+            count = max(0, int(raw_count))
+            break
+        except ValueError:
+            ui.warn("Enter a whole number.")
+
+    apps: list[dict] = []
+    for index in range(count):
+        print()
+        ui.info(f"App {index + 1} of {count}")
+        default = existing_apps[index] if index < len(existing_apps) else {}
+        name = _prompt_text("App display name", str(default.get("name") or f"App {index + 1}"))
+        sku_default = ", ".join(str(s) for s in (default.get("apple_skus") or []))
+        iap_default = ", ".join(str(s) for s in (default.get("apple_iap_skus") or []))
+        pkg_default = ", ".join(str(s) for s in (default.get("google_package_names") or []))
+
+        print()
+        _print_intro(
+            "Apple app SKU — identifies the app itself:\n"
+            "  • App Store Connect → My Apps → your app → App Information → SKU\n"
+            "  • Often matches the Bundle ID (e.g. com.example.myapp)"
+        )
+        apple_skus = _parse_csv_list(
+            _prompt_text("Apple app SKU(s), optional", sku_default)
+        )
+
+        print()
+        _print_intro(
+            "Apple IAP / subscription SKUs — required for paid proceeds:\n"
+            "  • ASC sales reports usually put the IAP Product ID in the SKU column,\n"
+            "    not the app SKU — so subscriptions alone under the app SKU often show $0\n"
+            "  • Find them in App Store Connect → your app → Monetization →\n"
+            "    In-App Purchases / Subscriptions → Product ID\n"
+            "  • Enter every Product ID whose revenue should count for this app\n"
+            "    (comma-separated). Leave blank if the app has no IAPs/subscriptions"
+        )
+        apple_iap_skus = _parse_csv_list(
+            _prompt_text("Apple IAP / subscription Product ID(s), optional", iap_default)
+        )
+
+        print()
+        _print_intro(
+            "Google package names — filter Play bulk sales for this app:\n"
+            "  • Play Console → your app → Dashboard (application ID),\n"
+            "    e.g. com.example.myapp\n"
+            "  • Leave blank to skip Play filtering for this app"
+        )
+        packages = _parse_csv_list(
+            _prompt_text("Google package name(s), optional", pkg_default)
+        )
+        apps.append(
+            {
+                "name": name,
+                "apple_skus": apple_skus,
+                "apple_iap_skus": apple_iap_skus,
+                "google_package_names": packages,
+            }
+        )
+    _advance_after_step("Apps saved — great job!")
+    return apps
+
+
+def update_config_from_prompts(*, progress: _WizardProgress | None = None) -> None:
+    raw = _load_config_raw()
+    state = _seed_config_state(raw)
+
+    upload, currency = _collect_upload_prefs(raw, progress=progress)
+    state["upload_to_x"] = upload
+    state["currency"] = currency
+    _persist_config_state(state, reason="upload preferences")
+
+    challenge = _collect_challenge(raw, progress=progress)
+    state["challenge"] = challenge
+    _persist_config_state(state, reason="challenge preferences")
+
+    content = _collect_content(raw, challenge, progress=progress)
+    state["content"] = content
+    _persist_config_state(state, reason="banner content")
+
+    theme = _collect_theme(raw, progress=progress)
+    state["theme"] = theme
+    _persist_config_state(state, reason="theme preferences")
+
+    apps = _collect_apps(raw, progress=progress)
+    state["apps"] = apps
+    _persist_config_state(state, reason="apps")
+
+    _advance_after_step("All banner preferences saved — great job!")
 
 
 def _ensure_gh() -> None:
@@ -743,12 +1240,16 @@ def _persist_progress(values: dict[str, str], *, reason: str) -> None:
     ui.ok(f"Saved progress to {path.relative_to(REPO_ROOT)} ({reason})")
 
 
-def collect_secrets_interactively(existing: dict[str, str] | None = None) -> dict[str, str]:
+def collect_secrets_interactively(
+    existing: dict[str, str] | None = None,
+    *,
+    progress: _WizardProgress | None = None,
+) -> dict[str, str]:
     existing = existing or {}
     _print_header("x-mrr-banner setup")
     ui.info("This wizard writes a local .env and can sync the same values to GitHub")
     ui.info("Actions secrets on your fork (via `gh secret set`).")
-    ui.warn("Never commit .env. OpenAI stays local-only.")
+    ui.warn("Never commit .env.")
     if existing:
         ui.ok(f"Loaded {len([v for v in existing.values() if v])} existing value(s) from .env")
 
@@ -756,7 +1257,10 @@ def collect_secrets_interactively(existing: dict[str, str] | None = None) -> dic
     sections = _sections(include_x=True, include_openai=True)
     try:
         for section in sections:
-            _print_header(section.name)
+            if progress is not None:
+                progress.header(section.name)
+            else:
+                _print_header(section.name)
 
             if _section_is_complete(section, values):
                 set_count = sum(1 for spec in section.fields if _field_is_set(values, spec.key))
@@ -787,7 +1291,7 @@ def collect_secrets_interactively(existing: dict[str, str] | None = None) -> dic
     except KeyboardInterrupt:
         print()
         _persist_progress(values, reason="interrupted")
-        ui.warn("Setup interrupted — re-run bootstrap to continue from where you left off.")
+        ui.warn("Setup interrupted — re-run start to continue from where you left off.")
         raise SystemExit(130) from None
 
     return values
@@ -811,12 +1315,16 @@ def run_setup(
         ui.ok(f"Uploaded {len(uploaded)} secret(s).")
         return 0
 
-    values = collect_secrets_interactively(existing)
+    sections = _sections(include_x=True, include_openai=True)
+    config_steps = 0 if skip_config else 5
+    progress = _WizardProgress(len(sections) + config_steps)
+
+    values = collect_secrets_interactively(existing, progress=progress)
     env_path = write_env_file(values)
     ui.ok(f"Wrote {env_path.relative_to(REPO_ROOT)}")
 
     if not skip_config:
-        update_config_from_prompts()
+        update_config_from_prompts(progress=progress)
 
     if skip_github:
         ui.info("Skipped GitHub secrets (--local-only).")
@@ -838,7 +1346,7 @@ def run_setup(
 
     _print_header("Next steps")
     ui.step("Activate the venv if needed:  source .venv/bin/activate")
-    ui.step("Generate the banner template:  python -m x_mrr_banner generate_template")
-    ui.step("Commit & push:  git add assets/template/ config.yaml && git commit && git push")
+    ui.step("Generate a banner:  python -m x_mrr_banner update --dry-run  → output/YYYYMM/")
+    ui.step("Commit & push:  git add config.yaml && git commit && git push")
     ui.step("GitHub → Actions → Update X banner → Run workflow")
     return 0

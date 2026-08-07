@@ -1,0 +1,180 @@
+# X MRR Banner Generation Specification
+
+Generate a complete X profile banner containing the real business data below.
+
+The output must be the FINAL banner image.
+Do not leave placeholders visible.
+All supplied values must be rendered accurately.
+
+## Canvas
+
+- Width: {{ banner.width }} px
+- Height: {{ banner.height }} px
+- Aspect ratio: {{ banner.aspect_ratio }}
+- Platform: X profile banner
+- Compose the full layout for a wide 3:1 banner ({{ banner.width }}×{{ banner.height }}).
+- Keep all text and UI inside a safe margin (~4% inset from every edge).
+- Do not place critical text in the extreme top or bottom strips.
+
+## Challenge
+
+- Challenge headline: {{ challenge.headline }}
+- Start date: {{ challenge.start_date }}
+- Deadline: {{ challenge.deadline }}
+- Current period: {{ challenge.current_period }}
+- Total periods: {{ challenge.total_periods }}
+- Target MRR: {{ challenge.target_mrr_formatted }}
+- Current MRR: {{ revenue.current_mrr_formatted }}
+- Progress toward target: {{ revenue.target_progress_percent }}%
+
+## Apps
+
+{% for app in apps %}
+### {{ app.name }}
+
+- Current MRR: {{ app.current_mrr_formatted }}
+- Apple App Store MRR: {{ app.apple_mrr_formatted }}
+- Google Play MRR: {{ app.google_mrr_formatted }}
+
+{% endfor %}
+
+## Revenue History
+
+Use the following REAL values to draw the revenue chart.
+
+| Period | Apple | Google | Total |
+| --- | ---: | ---: | ---: |
+{% for period in revenue.history %}
+| {{ period.label }} | {{ period.apple_formatted }} | {{ period.google_formatted }} | {{ period.total_formatted }} |
+{% endfor %}
+
+## Text to Render
+
+Render the following text clearly and exactly.
+
+### Top Label
+
+{{ content.top_label }}
+
+### Main Headline
+
+{{ content.headline }}
+
+### Subheadline
+
+{{ content.subheadline }}
+
+### Apps Line
+
+{{ content.apps_label }}
+
+### Period
+
+{{ content.period_label }}
+
+### Current MRR
+
+{{ content.revenue_label }}
+
+## Visual Direction
+
+- Mood: {{ theme.mood }}
+- Style: {{ theme.style }}
+- Color mode: {{ theme.color_mode }}
+- Background: {{ theme.background_color }}
+- Primary color: {{ theme.primary_color }}
+- Accent color: {{ theme.accent_color }}
+- Text color: {{ theme.text_color }}
+- Chart color: {{ theme.chart_color }}
+
+Create a premium dark indie-founder / technology aesthetic.
+
+Use:
+- deep charcoal background
+- subtle technical grid
+- soft gradients
+- faint flowing curves
+- partial geometric arcs
+- restrained glow
+- subtle dotted accents
+- strong typography
+- generous negative space
+
+Avoid:
+- excessive cyberpunk styling
+- excessive neon
+- busy patterns
+- photographic imagery
+
+## Composition
+
+Follow this structure:
+
+### Left / Main Area
+
+Show:
+- top label
+- main challenge headline
+- subheadline
+- apps being built
+
+The headline should be the dominant visual element.
+
+### Right Status Card
+
+Show:
+- current period
+- current MRR
+- optional target progress
+
+Use a dark rounded card with subtle borders and glow.
+
+### Bottom Revenue Chart
+
+Draw a real revenue chart using the supplied revenue history.
+
+Requirements:
+- use only the real values provided
+- preserve chronological order
+- visually distinguish Apple and Google where appropriate
+- show total revenue clearly
+- keep labels readable
+- do not invent intermediate values
+- do not fabricate missing data
+
+### Bottom Progress Indicator
+
+Show progress from:
+
+{{ challenge.start_mrr_formatted }}
+
+to:
+
+{{ challenge.target_mrr_formatted }}
+
+Position the marker according to:
+
+{{ revenue.target_progress_percent }}%
+
+## Accuracy Rules
+
+This banner contains real financial data.
+
+Therefore:
+
+- Render every supplied number accurately.
+- Do not invent revenue values.
+- Do not change app names.
+- Do not change dates.
+- Do not change currencies.
+- Do not round values unless the formatted value already contains rounding.
+- Do not fabricate chart points.
+- Do not substitute placeholder values.
+- Do not display Jinja variables or braces.
+- Do not add additional statistics that were not supplied.
+
+## Final Output
+
+Generate one complete polished X profile banner.
+
+It must look publication-ready and require no programmatic visual overlays afterward.

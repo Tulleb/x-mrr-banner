@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Bootstrap: create venv, install Python deps, ensure gh, run setup wizard.
+# Start: create venv, install Python deps, ensure gh, run setup wizard, generate first banner.
 set -euo pipefail
 
-# Prefer color in interactive bootstrap even if the environment sets NO_COLOR.
+# Prefer color in interactive start even if the environment sets NO_COLOR.
 export FORCE_COLOR="${FORCE_COLOR:-1}"
 # Clear NO_COLOR for this process tree so the Python wizard can colorize too.
 unset NO_COLOR
@@ -34,7 +34,7 @@ step()    { printf '%s→%s %s\n' "$C_BLUE$C_BOLD" "$C_RESET" "$*"; }
 info()    { printf '%s%s%s\n' "$C_DIM" "$*" "$C_RESET"; }
 bullet()  { printf '  %s•%s %s\n' "$C_DIM" "$C_RESET" "$*"; }
 
-header "x-mrr-banner bootstrap"
+header "x-mrr-banner start"
 info "Repo: $ROOT"
 
 need_python() {
@@ -140,6 +140,24 @@ fi
 
 echo
 step "Starting interactive setup wizard"
-info "API keys → .env + optional GitHub Actions secrets"
+info "API keys → .env + GitHub Actions secrets"
+info "Banner preferences → config.yaml"
 echo
-exec python -m x_mrr_banner setup "$@"
+python -m x_mrr_banner setup "$@"
+
+echo
+step "First banner generation"
+info "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+read -r -p "$(printf '%sGenerate the first banner now? [Y/n]%s ' "$C_BOLD" "$C_RESET")" ans
+ans=${ans:-Y}
+if [[ "$ans" =~ ^[Yy]$ ]]; then
+  python -m x_mrr_banner update --dry-run
+  echo
+  ok "Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+else
+  echo
+  ok "Skipped banner generation."
+  bullet "Generate later:  python -m x_mrr_banner update --dry-run"
+fi
+bullet "Commit config.yaml and push when ready"
+bullet "GitHub → Actions → Update X banner → Run workflow"

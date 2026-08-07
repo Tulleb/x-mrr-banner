@@ -1,10 +1,10 @@
-# Bootstrap for juniors on Windows: create venv, install deps, ensure gh, run setup.
+# Start for Windows: create venv, install deps, ensure gh, run setup, generate first banner.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
 Write-Host "============================================================"
-Write-Host "x-mrr-banner bootstrap (Windows)"
+Write-Host "x-mrr-banner start (Windows)"
 Write-Host "============================================================"
 Write-Host "Repo: $Root"
 Write-Host ""
@@ -57,7 +57,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
   $ans = Read-Host "Install gh with winget now? [Y/n]"
   if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
     winget install --id GitHub.cli -e --accept-source-agreements --accept-package-agreements
-    Write-Host "If 'gh' is not found yet, close this window, open a new PowerShell, and re-run bootstrap."
+    Write-Host "If 'gh' is not found yet, close this window, open a new PowerShell, and re-run start."
   } else {
     Write-Host "Install manually: https://cli.github.com/  or  winget install GitHub.cli"
   }
@@ -79,3 +79,19 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
 Write-Host ""
 Write-Host "→ Starting interactive setup wizard"
 python -m x_mrr_banner setup @args
+
+Write-Host ""
+Write-Host "→ First banner generation"
+Write-Host "Fetches revenues, renders inputs/BANNER.md.j2, calls OpenAI → output/YYYYMM/"
+$ans = Read-Host "Generate the first banner now? [Y/n]"
+if ([string]::IsNullOrWhiteSpace($ans) -or $ans -match '^[Yy]') {
+  python -m x_mrr_banner update --dry-run
+  Write-Host ""
+  Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+} else {
+  Write-Host ""
+  Write-Host "✓ Skipped banner generation."
+  Write-Host "  • Generate later:  python -m x_mrr_banner update --dry-run"
+}
+Write-Host "  • Commit config.yaml and push when ready"
+Write-Host "  • GitHub → Actions → Update X banner → Run workflow"

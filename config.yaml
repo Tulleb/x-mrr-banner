@@ -1,10 +1,57 @@
-# When false, update still fetch + compose the banner (and CI uploads an
+# When false, update still generates the banner (and CI uploads an
 # artifact) but skip calling the X API. Set true once X credentials are ready.
 upload_to_x: true
 
 # Display / aggregation currency label (reports may still be multi-currency).
 currency: USD
 
-# Optional: restrict to these Apple SKUs / Google package names (empty = all).
-apple_skus: []
-google_package_names: []
+# Challenge / progress preferences used by inputs/BANNER.md.j2
+challenge:
+  headline: "$10k MRR Target"
+  start_date: "2026-04-01"
+  deadline: "2027-03-31"
+  total_periods: 12
+  start_mrr: 0.0
+  target_mrr: 10000.0
+
+# Banner copy (period_label / revenue_label are filled from live data at update time)
+content:
+  top_label: "PUBLIC BUILD LOG"
+  headline: "$10k MRR Target"
+  subheadline: "Building in public toward the target"
+  apps_label: "Apps in progress"
+
+# Visual direction for the OpenAI banner prompt
+theme:
+  mood: "confident and clean"
+  style: "minimal geometric with soft gradients"
+  color_mode: dark
+  background_color: "#0B0D10"
+  primary_color: "#4F8CFF"
+  accent_color: "#7CFFB2"
+  text_color: "#FFFFFF"
+  chart_color: "#7CFFB2"
+
+# Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)
+apps:
+  - name: "Voila"
+    apple_skus:
+      - "com.tulleb.Voila"
+    # IAP / subscription Product IDs (SKU column in ASC sales reports)
+    apple_iap_skus:
+      - "nars_pass1"
+      - "nars_pass2"
+      - "nars_pass3"
+      - "nars_pass4"
+    google_package_names: []
+  - name: "Hint"
+    apple_skus:
+      - "com.tulleb.indix"
+    # IAP / subscription Product IDs (SKU column in ASC sales reports)
+    apple_iap_skus:
+      - "com.tulleb.indix.plus.week"
+      - "com.tulleb.indix.plus.year"
+      - "com.tulleb.indix.plus.week.full"
+      - "com.tulleb.indix.plus.year.full"
+    google_package_names:
+      - "com.tulleb.indix"
