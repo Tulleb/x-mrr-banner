@@ -495,55 +495,82 @@ def _sections(*, include_x: bool, include_openai: bool) -> list[Section]:
                 optional=True,
                 configure_prompt="Configure X banner upload credentials now?",
                 intro=(
-                    "Create an X developer app, then copy OAuth 1.0a keys for your account.\n"
+                    "Create an X developer app, set Read and write, then copy OAuth 1.0a keys.\n"
                     "\n"
                     f"Open: {X_DEVELOPER_PORTAL_URL}\n"
-                    "Path: Apps → Create App → Create your app\n"
                     "\n"
-                    "Warning: After creating an app, it may not show in the main Apps list —\n"
-                    "look under the hidden \"Standalone Apps\" dropdown.\n"
-                    "Warning: The X console allows creating at most 3 apps per day.\n"
+                    "Step 1 — Create the app\n"
+                    "  Path: Apps → Create App → Create your app\n"
+                    "  Warning: After creating, it may not show in the main Apps list —\n"
+                    "  look under the hidden \"Standalone Apps\" dropdown.\n"
+                    "  Warning: The X console allows creating at most 3 apps per day.\n"
                     "\n"
-                    "When asked for Environment, choose:\n"
-                    "  • Production  ← required (this updates your real profile banner)\n"
-                    "  • Do not use Development or Staging for the live GitHub Action\n"
+                    "Step 2 — Environment\n"
+                    "  When asked for Environment, choose:\n"
+                    "    • Production  ← required (updates your real profile banner)\n"
+                    "    • Do not use Development or Staging for the live GitHub Action\n"
                     "\n"
-                    "App settings: enable Read and write user permissions, then create\n"
-                    "OAuth 1.0a access tokens for the account whose banner you update.\n"
+                    "Step 3 — App Settings → User authentication settings (do this FIRST)\n"
+                    "  Start here before generating access tokens:\n"
+                    "    1. App permissions: Read and write  ← required for banner upload\n"
+                    "       (Read-only tokens return HTTP 403 on upload)\n"
+                    "    2. Type of App: Native App is fine\n"
+                    "    3. Callback URI / Redirect URL: https://127.0.0.1\n"
+                    "    4. Website URL: https://127.0.0.1\n"
+                    "       Tip: the portal requires both fields to Save — use\n"
+                    "       https://127.0.0.1 in each. This project never opens a\n"
+                    "       browser login; localhost placeholders are enough.\n"
+                    "    5. Click Save\n"
+                    "  Ignore any OAuth 2.0 Client Secret the portal shows afterward —\n"
+                    "  this project uses OAuth 1.0a only.\n"
+                    "\n"
+                    "Step 4 — Keys and tokens (OAuth 1.0a)\n"
+                    "  Open Keys and tokens, then:\n"
+                    "    • Copy Consumer Keys → API Key + API Key Secret\n"
+                    "    • Generate (or regenerate) Authentication Tokens →\n"
+                    "      Access Token + Access Token Secret\n"
+                    "  Important: regenerate Access Token + Secret AFTER saving\n"
+                    "  Read and write. Tokens created while Read-only stay read-only.\n"
+                    "\n"
                     "Banner upload uses v1.1 account/update_profile_banner (no v2 equivalent).\n"
                     "API access is pay-per-use / credit-based for most new apps."
                 ),
                 fields=[
                     FieldSpec(
                         key="X_API_KEY",
-                        title="API Key (Consumer Key)",
+                        title="API Key (Consumer Key) — OAuth 1.0a",
                         help_text=(
-                            "console.x.com → Apps → your app (or Standalone Apps) →\n"
-                            "Keys and tokens → Consumer Keys → API Key."
+                            "Keys and tokens → Consumer Keys → API Key.\n"
+                            "Not the OAuth 2.0 Client ID."
                         ),
                         open_url=X_DEVELOPER_PORTAL_URL,
                     ),
                     FieldSpec(
                         key="X_API_SECRET",
-                        title="API Secret (Consumer Secret)",
+                        title="API Secret (Consumer Secret) — OAuth 1.0a",
                         help_text=(
-                            "Same Keys and tokens page → Consumer Keys → API Key Secret."
+                            "Keys and tokens → Consumer Keys → API Key Secret.\n"
+                            "Not the OAuth 2.0 Client Secret."
                         ),
                         open_url=X_DEVELOPER_PORTAL_URL,
                     ),
                     FieldSpec(
                         key="X_ACCESS_TOKEN",
-                        title="Access Token",
+                        title="Access Token — OAuth 1.0a",
                         help_text=(
-                            "Keys and tokens → Authentication Tokens → Access Token\n"
-                            "(app must have Read and write; regenerate tokens after changing permissions)."
+                            "Keys and tokens → Authentication Tokens → Access Token.\n"
+                            "Must be created AFTER App Settings → Read and write.\n"
+                            "If you already had tokens, regenerate them now."
                         ),
                         open_url=X_DEVELOPER_PORTAL_URL,
                     ),
                     FieldSpec(
                         key="X_ACCESS_TOKEN_SECRET",
-                        title="Access Token Secret",
-                        help_text="Same Authentication Tokens section → Access Token Secret.",
+                        title="Access Token Secret — OAuth 1.0a",
+                        help_text=(
+                            "Same Authentication Tokens section → Access Token Secret.\n"
+                            "Pair with the regenerated Access Token from Read and write."
+                        ),
                         open_url=X_DEVELOPER_PORTAL_URL,
                     ),
                 ],
