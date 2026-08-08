@@ -59,6 +59,20 @@ def output_paths_for_month(period_start: date) -> tuple[Path, Path]:
     return folder / "banner.png", folder / "BANNER.md"
 
 
+def latest_banner_png() -> Path | None:
+    """Most recently modified banner.png under output/ (YYYYMM or legacy flat path)."""
+    candidates: list[Path] = []
+    if OUTPUT_DIR.is_dir():
+        candidates.extend(OUTPUT_DIR.glob("*/banner.png"))
+        legacy = OUTPUT_DIR / "banner.png"
+        if legacy.is_file():
+            candidates.append(legacy)
+    existing = [path for path in candidates if path.is_file()]
+    if not existing:
+        return None
+    return max(existing, key=lambda path: path.stat().st_mtime)
+
+
 @dataclass
 class ChallengeConfig:
     headline: str = ""

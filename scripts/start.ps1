@@ -76,6 +76,60 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
   }
 }
 
+function Offer-XUpload {
+  python -c @"
+from x_mrr_banner.config import load_dotenv_files
+import os
+load_dotenv_files()
+keys = ('X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_TOKEN_SECRET')
+raise SystemExit(0 if all(os.environ.get(k, '').strip() for k in keys) else 1)
+"@
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "Skipping X upload prompt (X API credentials not configured)."
+    Write-Host "  • Configure X in setup, then:  python -m x_mrr_banner upload"
+    return
+  }
+
+  python -c @"
+from x_mrr_banner.config import load_config, load_dotenv_files
+load_dotenv_files()
+raise SystemExit(0 if load_config().upload_to_x else 1)
+"@
+  $defaultYes = ($LASTEXITCODE -eq 0)
+  $suffix = if ($defaultYes) { "[Y/n]" } else { "[y/N]" }
+
+  Write-Host ""
+  Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+  Write-Host -NoNewline "📤  " -ForegroundColor Yellow
+  Write-Host -NoNewline "Upload this banner to your X profile now?" -ForegroundColor Green
+  Write-Host -NoNewline "  "
+  Write-Host -NoNewline $suffix -ForegroundColor Cyan
+  Write-Host -NoNewline "  ✨ " -ForegroundColor Magenta
+  $uploadAns = Read-Host
+  Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+
+  $doUpload = $false
+  if ([string]::IsNullOrWhiteSpace($uploadAns)) {
+    $doUpload = $defaultYes
+  } elseif ($uploadAns -match '^[Yy]') {
+    $doUpload = $true
+  }
+
+  if ($doUpload) {
+    Write-Host "→ Uploading banner to X…"
+    python -m x_mrr_banner upload
+    if ($LASTEXITCODE -eq 0) {
+      Write-Host "✓ X profile banner updated."
+    } else {
+      Write-Host "! Upload failed — check X OAuth credentials and app Read+Write permissions."
+      Write-Host "  • Retry:  python -m x_mrr_banner upload"
+    }
+  } else {
+    Write-Host "Skipped X upload."
+    Write-Host "  • Upload later:  python -m x_mrr_banner upload"
+  }
+}
+
 Write-Host ""
 
 $skipSetup = $false
@@ -93,6 +147,7 @@ if ($skipSetup) {
   python -m x_mrr_banner update --dry-run
   Write-Host ""
   Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+  Offer-XUpload
 } else {
   Write-Host ""
   Write-Host "→ Starting interactive setup wizard"
@@ -116,6 +171,7 @@ if ($skipSetup) {
     python -m x_mrr_banner update --dry-run
     Write-Host ""
     Write-Host "✓ Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+    Offer-XUpload
   } else {
     Write-Host ""
     Write-Host "✓ Skipped banner generation."

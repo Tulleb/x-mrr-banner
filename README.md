@@ -21,7 +21,7 @@ cd x-mrr-banner
 ./scripts/start.sh
 ```
 
-Start creates `.venv`, runs `pip install -e .`, helps with `gh`, and launches the credential + preference wizard (`.env`, `config.yaml`, Actions secrets). It then **asks** whether to generate the first banner locally (`update --dry-run` → `output/YYYYMM/`).
+Start creates `.venv`, runs `pip install -e .`, helps with `gh`, and launches the credential + preference wizard (`.env`, `config.yaml`, Actions secrets). It then **asks** whether to generate the first banner locally (`update --dry-run` → `output/YYYYMM/`), and if X credentials are set, whether to **upload that banner to your X profile**.
 
 ```bash
 git add config.yaml

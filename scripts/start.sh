@@ -153,6 +153,65 @@ run_banner() {
   python -m x_mrr_banner update --dry-run
   echo
   ok "Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+  offer_x_upload
+}
+
+offer_x_upload() {
+  # Only prompt when X OAuth credentials are present in .env / environment.
+  if ! python -c '
+from x_mrr_banner.config import load_dotenv_files
+import os
+load_dotenv_files()
+keys = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET")
+raise SystemExit(0 if all(os.environ.get(k, "").strip() for k in keys) else 1)
+'; then
+    info "Skipping X upload prompt (X API credentials not configured)."
+    bullet "Configure X in setup, then:  python -m x_mrr_banner upload"
+    return 0
+  fi
+
+  default_yes=false
+  if python -c '
+from x_mrr_banner.config import load_config, load_dotenv_files
+load_dotenv_files()
+raise SystemExit(0 if load_config().upload_to_x else 1)
+'; then
+    default_yes=true
+  fi
+
+  echo
+  if [[ "$default_yes" == true ]]; then
+    suffix="[Y/n]"
+  else
+    suffix="[y/N]"
+  fi
+  printf '%s%s%s\n' "$C_BOLD$C_BRIGHT_CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" "$C_RESET"
+  printf '%s📤  %sUpload this banner to your X profile now?%s  %s%s%s  %s✨%s ' \
+    "$C_BOLD$C_BRIGHT_YELLOW" \
+    "$C_BOLD$C_BRIGHT_GREEN" "$C_RESET" \
+    "$C_BOLD$C_BRIGHT_CYAN" "$suffix" "$C_RESET" \
+    "$C_BOLD$C_BRIGHT_MAGENTA" "$C_RESET"
+  read -r upload_ans
+  printf '%s%s%s\n' "$C_BOLD$C_BRIGHT_CYAN" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" "$C_RESET"
+
+  if [[ "$default_yes" == true ]]; then
+    upload_ans=${upload_ans:-Y}
+  else
+    upload_ans=${upload_ans:-N}
+  fi
+
+  if [[ "$upload_ans" =~ ^[Yy]$ ]]; then
+    step "Uploading banner to X…"
+    if python -m x_mrr_banner upload; then
+      ok "X profile banner updated."
+    else
+      warn "Upload failed — check X OAuth credentials and app Read+Write permissions."
+      bullet "Retry:  python -m x_mrr_banner upload"
+    fi
+  else
+    info "Skipped X upload."
+    bullet "Upload later:  python -m x_mrr_banner upload"
+  fi
 }
 
 finish_tips() {
@@ -194,6 +253,7 @@ if [[ "$ans" =~ ^[Yy]$ ]]; then
   python -m x_mrr_banner update --dry-run
   echo
   ok "Done. Outputs under output/YYYYMM/ (banner.png + BANNER.md)"
+  offer_x_upload
 else
   echo
   ok "Skipped banner generation."

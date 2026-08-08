@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from pathlib import Path
 
 from x_mrr_banner.banner.context import build_banner_context, render_banner_prompt
 from x_mrr_banner.banner.generate import generate_banner
@@ -10,6 +11,7 @@ from x_mrr_banner.config import (
     AppConfig,
     RevenueSnapshot,
     format_currency,
+    latest_banner_png,
     load_config,
     load_dotenv_files,
     output_paths_for_month,
@@ -166,6 +168,21 @@ def cmd_setup(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_upload(args: argparse.Namespace) -> int:
+    """Upload an existing local banner.png to X (no regeneration)."""
+    path = Path(args.path).expanduser() if args.path else latest_banner_png()
+    if path is None:
+        logger.error("No banner.png found under output/. Run update --dry-run first.")
+        return 1
+    if not path.is_file():
+        logger.error("Banner file not found: %s", path)
+        return 1
+    logger.info("Uploading %s to X…", path)
+    upload_banner(path)
+    logger.info("X profile banner updated.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="x-mrr-banner",
@@ -209,6 +226,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not prompt to update config.yaml preferences",
     )
     setup.set_defaults(func=cmd_setup)
+
+    upload = sub.add_parser(
+        "upload",
+        help="Upload the latest (or given) local banner.png to X without regenerating",
+    )
+    upload.add_argument(
+        "--path",
+        default="",
+        help="Path to banner.png (default: newest under output/)",
+    )
+    upload.set_defaults(func=cmd_upload)
 
     return parser
 
