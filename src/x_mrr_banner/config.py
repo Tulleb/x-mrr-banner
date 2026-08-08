@@ -403,7 +403,13 @@ def _load_apps(raw: dict[str, Any]) -> list[AppEntry]:
 
 
 def load_dotenv_files() -> None:
-    load_dotenv(REPO_ROOT / ".env")
+    """Load repo `.env`, overriding shell-exported vars when the file exists.
+
+    So a project-local OPENAI_API_KEY (etc.) wins over a key set in ~/.zshrc.
+    """
+    env_path = REPO_ROOT / ".env"
+    if env_path.is_file():
+        load_dotenv(env_path, override=True)
 
 
 def load_config(path: Path | None = None) -> AppConfig:
