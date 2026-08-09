@@ -56,12 +56,14 @@ def _portfolio_filters(config: AppConfig) -> tuple[list[str] | None, list[str] |
     return (skus or None, packages or None)
 
 
-def _apple_skus_for(app: AppEntry) -> list[str] | None:
-    return app.revenue_apple_skus() or None
+def _apple_skus_for(app: AppEntry) -> list[str]:
+    # Empty list means this app has no Apple SKUs → $0 (not unfiltered).
+    return app.revenue_apple_skus()
 
 
-def _google_packages_for(app: AppEntry) -> list[str] | None:
-    return app.google_package_names or None
+def _google_packages_for(app: AppEntry) -> list[str]:
+    # Empty list means this app has no Play packages → $0 (not unfiltered).
+    return list(app.google_package_names)
 
 
 def _make_app_revenue(

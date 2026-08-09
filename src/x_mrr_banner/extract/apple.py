@@ -127,6 +127,10 @@ def sum_apple_proceeds(
     """
     from x_mrr_banner.extract.fx import convert_amount
 
+    # None = unfiltered (portfolio with no SKU list). [] = explicitly no SKUs → $0.
+    if apple_skus is not None and not apple_skus:
+        return 0.0
+
     allowed = set(apple_skus or [])
     by_currency: dict[str, float] = {}
     for row in rows:

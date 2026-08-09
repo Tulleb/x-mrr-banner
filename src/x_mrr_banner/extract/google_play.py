@@ -142,11 +142,15 @@ def _rows_from_zip(payload: bytes) -> list[dict[str, str]]:
 
 
 def _row_package(row: dict[str, str]) -> str:
+    # Prefer Package ID / Package Name (current salesreport columns). Legacy
+    # reports used Product ID for the app package name before Google renamed it.
     for key in (
-        "Product ID",
+        "Package ID",
         "Package Name",
-        "product_id",
+        "package_id",
         "package_name",
+        "Product ID",
+        "product_id",
         "Product id",
     ):
         if key in row and row[key]:
@@ -208,6 +212,9 @@ def sum_google_revenue(
     end: date,
     package_names: list[str] | None = None,
 ) -> float:
+    # None = unfiltered (portfolio with no package list). [] = explicitly no packages → $0.
+    if package_names is not None and not package_names:
+        return 0.0
     allowed = set(package_names or [])
     total = 0.0
     for row in rows:
@@ -236,8 +243,10 @@ def fetch_google_daily_series(
     package_names: list[str] | None = None,
 ) -> dict[date, float]:
     rows = load_play_sales_rows(start, end)
-    allowed = set(package_names or [])
     result = {day: 0.0 for day in daterange(start, end)}
+    if package_names is not None and not package_names:
+        return result
+    allowed = set(package_names or [])
     for row in rows:
         package = _row_package(row)
         if allowed and package not in allowed:
