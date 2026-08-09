@@ -103,8 +103,12 @@ class ThemeConfig:
     chart_color: str = "#7CFFB2"
 
 
-WatermarkPosition = Literal["top_right", "bottom_center"]
-VALID_WATERMARK_POSITIONS: tuple[WatermarkPosition, ...] = ("top_right", "bottom_center")
+WatermarkPosition = Literal["bottom_left", "bottom_center", "top_right"]
+VALID_WATERMARK_POSITIONS: tuple[WatermarkPosition, ...] = (
+    "bottom_left",
+    "bottom_center",
+    "top_right",
+)
 
 
 @dataclass
@@ -112,7 +116,7 @@ class WatermarkConfig:
     """Attribution watermark overlaid after banner generation."""
 
     enabled: bool = True
-    position: WatermarkPosition = "top_right"
+    position: WatermarkPosition = "bottom_left"
 
 
 @dataclass

@@ -34,10 +34,10 @@ theme:
   chart_color: "#7CFFB2"
 
 # Attribution watermark (Pillow overlay after generation)
-# position: top_right (default) | bottom_center
+# position: bottom_left (default) | bottom_center | top_right
 watermark:
   enabled: true
-  position: bottom_center
+  position: bottom_left
 
 # Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)
 apps:

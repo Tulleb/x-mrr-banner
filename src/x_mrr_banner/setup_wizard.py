@@ -771,10 +771,10 @@ def _write_config_yaml(
         f"  chart_color: {_yaml_quote(theme['chart_color'])}",
         "",
         "# Attribution watermark (Pillow overlay after generation)",
-        "# position: top_right (default) | bottom_center",
+        "# position: bottom_left (default) | bottom_center | top_right",
         "watermark:",
         f"  enabled: {'true' if watermark.get('enabled', True) else 'false'}",
-        f"  position: {watermark.get('position') or 'top_right'}",
+        f"  position: {watermark.get('position') or 'bottom_left'}",
         "",
         "# Apps shown on the banner (empty = portfolio totals only, no per-app breakdown)",
         "apps:",
@@ -845,7 +845,7 @@ _DEFAULT_THEME = {
 
 _DEFAULT_WATERMARK = {
     "enabled": True,
-    "position": "top_right",
+    "position": "bottom_left",
 }
 
 
@@ -943,9 +943,9 @@ def _existing_watermark(raw: dict) -> dict | None:
     if "watermark" not in raw:
         return None
     existing = raw.get("watermark") if isinstance(raw.get("watermark"), dict) else {}
-    position = str(existing.get("position") or "top_right").strip().lower()
+    position = str(existing.get("position") or "bottom_left").strip().lower()
     if position not in VALID_WATERMARK_POSITIONS:
-        position = "top_right"
+        position = "bottom_left"
     enabled = existing.get("enabled")
     if enabled is None:
         enabled = True
@@ -1178,12 +1178,12 @@ def _collect_watermark(raw: dict, *, progress: _WizardProgress | None = None) ->
     if not enabled:
         _show_watermark_removal_disclaimer()
 
-    position = str(defaults.get("position") or "top_right")
+    position = str(defaults.get("position") or "bottom_left")
     if enabled:
         position = _prompt_choice(
             "Watermark position",
             VALID_WATERMARK_POSITIONS,
-            position if position in VALID_WATERMARK_POSITIONS else "top_right",
+            position if position in VALID_WATERMARK_POSITIONS else "bottom_left",
         )
     watermark = {"enabled": enabled, "position": position}
     _advance_after_step("Watermark preferences saved — great job!")

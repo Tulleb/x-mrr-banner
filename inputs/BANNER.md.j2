@@ -24,6 +24,32 @@ Do not add any content that is not explicitly requested in this specification.
 - Do not place critical text against the extreme top or bottom edges.
 - Preserve enough breathing room around every major content block.
 
+### Bottom-Left Content Exclusion Zone (critical)
+
+Keep the bottom-left corner free of readable content.
+
+Exclusion zone size (anchored at the bottom-left corner):
+
+- **30%** of banner width
+- **40%** of banner height
+
+Do NOT place any of the following inside that zone:
+
+- app icons, app names, MRR values, or store splits
+- headline, subtitle, or section labels
+- status card content
+- progress-bar start label, percentage label, or marker
+- any other critical text or UI
+
+Composition rules that follow from this:
+
+- shift the apps section **rightward and/or upward** so the first app is fully clear of this zone
+- keep the progress track and its labels clear of this zone (indent the bar / start label so they begin after it)
+- empty dark space in that bottom-left corner is correct and expected
+{% if watermark.enabled and watermark.position == "bottom_left" %}
+- the programmatic attribution watermark will later sit in this same bottom-left quiet zone
+{% endif %}
+
 ## Context
 
 The following information provides context for the challenge.
@@ -217,6 +243,8 @@ Do not put individual apps inside separate large cards.
 
 Place every app block on a **single horizontal row** beneath the apps section label.
 
+Start that row **to the right of** the bottom-left content exclusion zone — never tuck the first app into that corner.
+
 Use the unused width between the left content and the status card — do not leave a tall empty column by stacking apps vertically.
 
 Keep even horizontal spacing between app blocks.
@@ -245,15 +273,18 @@ Do not make it oversized.
 
 ### Bottom Progress Region
 
-Use almost the full usable banner width.
+Use almost the full usable banner width, but start after the bottom-left content exclusion zone on the left.
 
 The progress bar should:
 
-- span horizontally across the banner
+- span horizontally across the remaining safe width
 - remain visually simple
 - have comfortable padding above and below
 - leave enough space beneath it for its labels
-{% if watermark.enabled and watermark.position == "bottom_center" %}
+- keep the start label and low-progress percentage clear of the bottom-left exclusion zone
+{% if watermark.enabled and watermark.position == "bottom_left" %}
+- leave the bottom-left attribution reservation unobstructed (same region as the content exclusion zone)
+{% elif watermark.enabled and watermark.position == "bottom_center" %}
 - leave the bottom-center attribution reservation unobstructed
 {% elif watermark.enabled and watermark.position == "top_right" %}
 - leave the top-right attribution reservation unobstructed
@@ -348,7 +379,15 @@ Do not write the platform names as text.
 
 The attribution watermark is added programmatically AFTER image generation.
 
-{% if watermark.position == "bottom_center" %}
+{% if watermark.position == "bottom_left" %}
+
+Reserve a quiet area at the bottom-left of the banner for this later overlay.
+
+This overlaps the bottom-left content exclusion zone — keep that corner dark and empty of important content.
+
+Keep the bottom-left attribution area:
+
+{% elif watermark.position == "bottom_center" %}
 
 Reserve a quiet area at the bottom-center of the banner for this later overlay.
 
@@ -389,6 +428,8 @@ Simply preserve suitable empty space.
 No attribution watermark will be overlaid after generation.
 
 Do not reserve empty space for a watermark, and do not draw any attribution, credits, handles, URLs, or signatures.
+
+Still keep the bottom-left content exclusion zone free of important content.
 
 {% endif %}
 
@@ -577,7 +618,7 @@ The only intentionally unfinished visual elements are:
 1. the pure-red app icon chroma markers, which will later be replaced with real app icons
 {% endif %}
 {% if watermark.enabled %}
-{% if apps %}2.{% else %}1.{% endif %} the reserved {% if watermark.position == "bottom_center" %}bottom-center{% else %}top-right{% endif %} attribution area, where the watermark will later be added programmatically
+{% if apps %}2.{% else %}1.{% endif %} the reserved {% if watermark.position == "bottom_left" %}bottom-left{% elif watermark.position == "bottom_center" %}bottom-center{% else %}top-right{% endif %} attribution area, where the watermark will later be added programmatically
 {% endif %}
 {% if not apps and not watermark.enabled %}
 

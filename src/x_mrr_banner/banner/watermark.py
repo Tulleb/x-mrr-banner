@@ -82,8 +82,10 @@ def _anchor_xy(
 ) -> tuple[int, int]:
     if position == "bottom_center":
         return (canvas_w - text_w) // 2, canvas_h - _MARGIN - text_h
-    # default: top_right
-    return canvas_w - _MARGIN - text_w, _MARGIN
+    if position == "top_right":
+        return canvas_w - _MARGIN - text_w, _MARGIN
+    # default: bottom_left
+    return _MARGIN, canvas_h - _MARGIN - text_h
 
 
 def apply_watermark(
@@ -124,7 +126,10 @@ def apply_watermark(
     def line_x(line_width: int) -> int:
         if watermark.position == "bottom_center":
             return origin_x + (text_w - line_width) // 2
-        return origin_x + (text_w - line_width)
+        if watermark.position == "top_right":
+            return origin_x + (text_w - line_width)
+        # bottom_left: left-align within the reserved block
+        return origin_x
 
     x1 = line_x(line1_w)
     y1 = origin_y
