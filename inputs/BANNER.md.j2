@@ -41,13 +41,10 @@ Do NOT place any of the following inside that zone:
 - progress-bar start label, percentage label, or marker
 - any other critical text or UI
 
-Composition rules that follow from this:
-
-- shift the apps section **rightward and/or upward** so the first app is fully clear of this zone
-- keep the progress track and its labels clear of this zone (indent the bar / start label so they begin after it)
-- empty dark space in that bottom-left corner is correct and expected
+Empty dark space in that bottom-left corner is correct and expected. Arrange every required element however you like, as long as nothing listed above enters this zone.
 {% if watermark.enabled and watermark.position == "bottom_left" %}
-- the programmatic attribution watermark will later sit in this same bottom-left quiet zone
+
+The programmatic attribution watermark will later sit in this same bottom-left quiet zone.
 {% endif %}
 
 ## Context
@@ -120,15 +117,7 @@ Do NOT write any of these words in the visible app rows:
 
 The store icons themselves should identify the platforms.
 
-{% if apps|length <= 3 %}
-
-Arrange all {{ apps|length }} app block(s) on **one horizontal row** under the section label (not stacked vertically). Leave comfortable gaps between app blocks. Do not stretch them into separate cards.
-
-{% else %}
-
-Arrange app blocks in a compact horizontal wrap: prefer a single row when they fit; only wrap to a second row if necessary. Do not stack every app in a tall vertical list.
-
-{% endif %}
+Keep app blocks compact and easy to scan. Leave comfortable gaps between them. Do not stretch them into separate cards.
 
 {% endif %}
 
@@ -170,7 +159,7 @@ Specifically, do not add:
 
 ### Progress Bar
 
-At the bottom of the banner, render one long horizontal progress bar.
+Render one long horizontal progress bar.
 
 Start label:
 
@@ -186,48 +175,48 @@ Progress label:
 
 The visual fill length and circular marker position must correspond to exactly {{ revenue.target_progress_percent }}% of the distance from the starting value to the target value.
 
-Place the percentage immediately below the progress marker.
+Place the percentage near the progress marker so it clearly belongs to that position.
 
-When progress is very small, keep the percentage slightly to the right of the starting label so both labels remain readable.
+When progress is very small, keep the percentage readable and clear of the start label.
 
 Never center the percentage on the full track unless the actual progress position requires it.
 
 Do not draw any revenue history chart.
 
-## Layout
+## Composition
 
-Follow this approximate composition.
+You have full freedom to place every required element anywhere on the canvas, subject only to:
 
-### Left Main Region
+1. the canvas safe margins
+2. the bottom-left content exclusion zone
+{% if watermark.enabled %}
+3. the attribution reservation (see below)
+{% endif %}
 
-Use approximately 58–62% of the usable banner width.
+Do not force a fixed left/right/bottom region split. Choose a composition that feels balanced for a wide 3:1 banner.
 
-Arrange vertically:
+Still include every Visible Content element exactly once.
 
-1. top label
-2. main headline
-3. subtitle
-4. apps section
+### Visual Hierarchy
 
-Use generous negative space around the headline.
-
-Do not turn the entire left region into a dashboard.
-
-### Header Hierarchy
-
-Use approximately this visual hierarchy:
+Use approximately this visual hierarchy (relative size/weight — not placement):
 
 - top label: small
 - headline: very large, bold, condensed or semi-condensed
 - subtitle: medium
 - apps section label: small to medium
 - app information: compact
+- status card: secondary to the headline; do not make it oversized
 
 The headline should visually dominate all other elements.
 
-### Apps Region
+Use generous negative space around the headline.
 
-Keep the app section compact and easy to scan.
+Do not turn the banner into a dense dashboard.
+
+{% if apps %}
+
+### App Block Structure
 
 Preferred visual structure for each app:
 
@@ -239,49 +228,15 @@ Underneath:
 
 Do not put individual apps inside separate large cards.
 
-{% if apps and apps|length <= 3 %}
-
-Place every app block on a **single horizontal row** beneath the apps section label.
-
-Start that row **to the right of** the bottom-left content exclusion zone — never tuck the first app into that corner.
-
-Use the unused width between the left content and the status card — do not leave a tall empty column by stacking apps vertically.
-
-Keep even horizontal spacing between app blocks.
-
-{% elif apps %}
-
-Prefer a horizontal row of app blocks. Wrap to a second row only if a single row would become cramped.
-
-{% else %}
-
-(No apps section.)
-
 {% endif %}
 
-### Right Status Region
-
-Use approximately 28–32% of the usable banner width.
-
-Place the status card toward the right side of the banner.
-
-Vertically center it relative to the main information area.
-
-The card should feel secondary to the main headline.
-
-Do not make it oversized.
-
-### Bottom Progress Region
-
-Use almost the full usable banner width, but start after the bottom-left content exclusion zone on the left.
+### Progress Bar Presentation
 
 The progress bar should:
 
-- span horizontally across the remaining safe width
 - remain visually simple
-- have comfortable padding above and below
-- leave enough space beneath it for its labels
-- keep the start label and low-progress percentage clear of the bottom-left exclusion zone
+- have comfortable padding around it and its labels
+- keep all of its labels, fill, and marker clear of the bottom-left exclusion zone
 {% if watermark.enabled and watermark.position == "bottom_left" %}
 - leave the bottom-left attribution reservation unobstructed (same region as the content exclusion zone)
 {% elif watermark.enabled and watermark.position == "bottom_center" %}
