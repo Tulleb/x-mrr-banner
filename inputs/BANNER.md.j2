@@ -75,7 +75,7 @@ Render one compact app block containing:
 
 - one pure-red rounded-square app icon marker using {{ icon_marker_hex }}
 - app name exactly: `{{ app.name }}`
-- total MRR exactly: `{{ app.current_mrr_formatted }}`
+- total MRR exactly: `{{ app.current_mrr_formatted }} MRR`
 
 Under the app name and total MRR, render the store split:
 
@@ -205,7 +205,7 @@ Keep the app section compact and easy to scan.
 
 Preferred visual structure for each app:
 
-`[APP ICON]  App Name    MRR`
+`[APP ICON]  App Name    $X.XX MRR`
 
 Underneath:
 
@@ -499,7 +499,7 @@ Preserve all of the following values exactly:
 
 {% for app in apps %}
 - App name: `{{ app.name }}`
-- App MRR: `{{ app.current_mrr_formatted }}`
+- App MRR: `{{ app.current_mrr_formatted }} MRR`
 - App Store MRR: `{{ app.apple_mrr_formatted }}`
 - Play Store MRR: `{{ app.google_mrr_formatted }}`
 {% endfor %}
