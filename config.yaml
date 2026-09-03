@@ -7,12 +7,12 @@ currency: USD
 
 # Challenge / progress preferences used by inputs/BANNER.md.j2
 challenge:
-  headline: "$10k MRR Target"
+  headline: "$1k MRR Target"
   start_date: "2026-04-01"
   deadline: "2027-03-31"
   total_periods: 12
   start_mrr: 0.0
-  target_mrr: 10000.0
+  target_mrr: 1000.0
 
 # Banner copy (period_label / revenue_label are filled from live data at update time)
 # Leave headline empty to use: "{N} MONTHS TO $10K MRR"
