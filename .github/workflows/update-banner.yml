@@ -6,11 +6,11 @@ on:
     - cron: "0 6 1 * *"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: Generate banner but skip X upload
+      upload_to_x:
+        description: Upload banner to X
         required: false
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           ARGS=(update)
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${{ inputs.upload_to_x }}" = "false" ]; then
             ARGS+=(--dry-run)
           fi
           python -m x_mrr_banner "${ARGS[@]}"
