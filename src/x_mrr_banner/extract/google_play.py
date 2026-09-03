@@ -29,6 +29,17 @@ def _require_env(name: str) -> str:
     return value
 
 
+def _reports_bucket() -> str:
+    """Normalize GOOGLE_PLAY_REPORTS_BUCKET to a bare bucket id."""
+    raw = _require_env("GOOGLE_PLAY_REPORTS_BUCKET")
+    # Accept full URIs pasted from Play Console ("Copy Cloud Storage URI").
+    cleaned = raw.removeprefix("gs://").strip("/")
+    bucket = cleaned.split("/", 1)[0].strip()
+    if not bucket:
+        raise GooglePlayError("GOOGLE_PLAY_REPORTS_BUCKET is empty after normalization")
+    return bucket
+
+
 def _load_service_account_info() -> dict[str, Any]:
     raw = _require_env("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
     stripped = raw.strip()
@@ -80,7 +91,13 @@ def _parse_play_date(value: str) -> date | None:
 
 
 def _decode_csv_bytes(payload: bytes) -> str:
-    for encoding in ("utf-16", "utf-8-sig", "utf-8"):
+    # Prefer BOM detection: blind utf-16 decode can "succeed" on utf-8 bytes
+    # and garble column names so every amount/package lookup returns empty.
+    if payload.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return payload.decode("utf-16")
+    if payload.startswith(b"\xef\xbb\xbf"):
+        return payload.decode("utf-8-sig")
+    for encoding in ("utf-8-sig", "utf-8", "utf-16"):
         try:
             return payload.decode(encoding)
         except UnicodeDecodeError:
@@ -112,6 +129,12 @@ def _month_keys(start: date, end: date) -> list[str]:
 
 
 def _download_sales_zip(bucket_name: str, yyyymm: str) -> bytes | None:
+    """Download Play Console *estimated sales* report (not earnings).
+
+    Path: gs://{bucket}/sales/salesreport_{YYYYMM}.zip
+    Earnings (`earnings/earnings_*.zip`) publish later (~5th of next month) and
+    are intentionally unused so monthly banner runs work early in the month.
+    """
     client = _storage_client()
     bucket = client.bucket(bucket_name)
     blob_name = f"sales/salesreport_{yyyymm}.zip"
@@ -167,35 +190,99 @@ def _row_order_date(row: dict[str, str]) -> date | None:
     return None
 
 
-def _row_amount(row: dict[str, str]) -> float:
+def _row_amount_and_currency(
+    row: dict[str, str],
+    *,
+    fallback_currency: str,
+) -> tuple[float, str]:
+    """Return (signed amount, currency code) for one estimated-sales row.
+
+    Prefer merchant-currency / estimated-proceeds columns when present; otherwise
+    use Item Price (buyer currency, pre-tax) then Charged Amount.
+    """
+    amount = 0.0
+    currency = ""
+
     for key in (
+        "Merchant Receives",
         "Earnings (Merchant Currency)",
         "Amount (Merchant Currency)",
-        "Charged Amount",
-        "Item Price",
-        "charged_amount",
     ):
         if key in row and row[key]:
-            return _parse_amount(row[key])
-    return 0.0
+            amount = _parse_amount(row[key])
+            currency = (
+                row.get("Merchant Currency") or row.get("merchant_currency") or ""
+            ).strip().upper()
+            break
+    else:
+        for key in ("Item Price", "Charged Amount", "charged_amount"):
+            if key in row and row[key]:
+                amount = _parse_amount(row[key])
+                currency = (
+                    row.get("Currency of Sale") or row.get("currency_of_sale") or ""
+                ).strip().upper()
+                break
+
+    if amount == 0:
+        return 0.0, (currency or fallback_currency).upper()
+
+    status = (row.get("Financial Status") or row.get("financial_status") or "").lower()
+    if "refund" in status and amount > 0:
+        amount = -amount
+
+    return amount, (currency or fallback_currency).upper()
 
 
 def load_play_sales_rows(start: date, end: date) -> list[dict[str, str]]:
-    bucket = _require_env("GOOGLE_PLAY_REPORTS_BUCKET")
+    bucket = _reports_bucket()
     rows: list[dict[str, str]] = []
     errors: list[str] = []
+    loaded_months: list[str] = []
+    missing_months: list[str] = []
+
+    logger.info(
+        "Google Play: loading estimated sales reports from gs://%s/sales/ (%s → %s)",
+        bucket,
+        start.isoformat(),
+        end.isoformat(),
+    )
+
     for yyyymm in _month_keys(start, end):
         try:
             payload = _download_sales_zip(bucket, yyyymm)
         except GooglePlayError as exc:
             errors.append(str(exc))
+            missing_months.append(yyyymm)
             continue
         if payload is None:
+            missing_months.append(yyyymm)
             continue
-        rows.extend(_rows_from_zip(payload))
+        month_rows = _rows_from_zip(payload)
+        loaded_months.append(f"{yyyymm} ({len(month_rows)} rows)")
+        rows.extend(month_rows)
+
+    if loaded_months:
+        logger.info(
+            "Google Play estimated sales: loaded %d row(s) from %d month(s): %s",
+            len(rows),
+            len(loaded_months),
+            "; ".join(loaded_months),
+        )
+    if missing_months:
+        msg = (
+            f"missing estimated sales zip(s) for {', '.join(missing_months)} "
+            f"under gs://{bucket}/sales/salesreport_YYYYMM.zip"
+        )
+        if rows:
+            logger.warning("Google Play: %s; continuing with partial data", msg)
+            safe = msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            print(f"::warning title=Google Play::{safe}", flush=True)
+        else:
+            logger.warning("Google Play: %s", msg)
+
     if errors and not rows:
         raise GooglePlayError("; ".join(errors[:3]))
-    if errors:
+    if errors and rows:
         msg = (
             f"skipped {len(errors)} month(s) due to download errors; "
             f"continuing with partial data. First error: {errors[0]}"
@@ -211,12 +298,20 @@ def sum_google_revenue(
     start: date,
     end: date,
     package_names: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
+    as_of: date | None = None,
 ) -> float:
+    """Sum estimated sales into target_currency (FX on buyer-currency amounts)."""
+    from x_mrr_banner.extract.fx import convert_amount
+
     # None = unfiltered (portfolio with no package list). [] = explicitly no packages → $0.
     if package_names is not None and not package_names:
         return 0.0
     allowed = set(package_names or [])
-    total = 0.0
+    target = target_currency.strip().upper() or "USD"
+    by_currency: dict[str, float] = {}
+
     for row in rows:
         package = _row_package(row)
         if allowed and package not in allowed:
@@ -224,7 +319,42 @@ def sum_google_revenue(
         order_date = _row_order_date(row)
         if order_date is None or order_date < start or order_date > end:
             continue
-        total += _row_amount(row)
+        amount, currency = _row_amount_and_currency(row, fallback_currency=target)
+        if amount == 0:
+            continue
+        by_currency[currency] = by_currency.get(currency, 0.0) + amount
+
+    if not by_currency:
+        return 0.0
+
+    on = as_of or end
+    total = 0.0
+    converted_parts: list[str] = []
+    for currency, amount in sorted(by_currency.items()):
+        try:
+            converted = convert_amount(amount, currency, target, on=on)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Google FX %s→%s failed for %.2f (%s); leaving unconverted",
+                currency,
+                target,
+                amount,
+                exc,
+            )
+            converted = amount if currency == target else 0.0
+        total += converted
+        if currency == target:
+            converted_parts.append(f"{amount:.2f} {currency}")
+        else:
+            converted_parts.append(f"{amount:.2f} {currency}→{converted:.2f} {target}")
+
+    if len(by_currency) > 1 or next(iter(by_currency.keys())) != target:
+        logger.info(
+            "Google estimated sales: %s (total %.2f %s)",
+            "; ".join(converted_parts),
+            total,
+            target,
+        )
     return total
 
 
@@ -232,27 +362,39 @@ def fetch_google_revenue(
     start: date,
     end: date,
     package_names: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
 ) -> float:
     rows = load_play_sales_rows(start, end)
-    return sum_google_revenue(rows, start, end, package_names=package_names)
+    return sum_google_revenue(
+        rows,
+        start,
+        end,
+        package_names=package_names,
+        target_currency=target_currency,
+        as_of=end,
+    )
 
 
 def fetch_google_daily_series(
     start: date,
     end: date,
     package_names: list[str] | None = None,
+    *,
+    target_currency: str = "USD",
 ) -> dict[date, float]:
     rows = load_play_sales_rows(start, end)
     result = {day: 0.0 for day in daterange(start, end)}
     if package_names is not None and not package_names:
         return result
-    allowed = set(package_names or [])
-    for row in rows:
-        package = _row_package(row)
-        if allowed and package not in allowed:
-            continue
-        order_date = _row_order_date(row)
-        if order_date is None or order_date not in result:
-            continue
-        result[order_date] += _row_amount(row)
+    # Convert per day via the shared summer for consistent FX + refund handling.
+    for day in list(result):
+        result[day] = sum_google_revenue(
+            rows,
+            day,
+            day,
+            package_names=package_names,
+            target_currency=target_currency,
+            as_of=day,
+        )
     return result

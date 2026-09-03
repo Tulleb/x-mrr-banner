@@ -105,7 +105,10 @@ def _fetch_app_window(
 
     try:
         google_rev = google_play.fetch_google_revenue(
-            start, end, package_names=packages
+            start,
+            end,
+            package_names=packages,
+            target_currency=target_currency,
         )
     except Exception as exc:  # noqa: BLE001
         _warn("Google Play", f"app {app.name!r} google revenue: {exc}")
@@ -217,6 +220,8 @@ def _app_slices_for_window(
                 start,
                 end,
                 package_names=_google_packages_for(app),
+                target_currency=target_currency,
+                as_of=end,
             )
             if google_rows
             else 0.0
@@ -244,11 +249,6 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
     apple_skus, package_names = _portfolio_filters(config)
 
     google_rows: list[dict[str, str]] = []
-    logger.info(
-        "Google Play: fetching sales %s → %s…",
-        history_start.isoformat(),
-        history_end.isoformat(),
-    )
     try:
         google_rows = google_play.load_play_sales_rows(history_start, history_end)
     except Exception as exc:  # noqa: BLE001
@@ -289,7 +289,12 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
 
         google_rev = (
             google_play.sum_google_revenue(
-                google_rows, start, end, package_names=package_names
+                google_rows,
+                start,
+                end,
+                package_names=package_names,
+                target_currency=target_currency,
+                as_of=end,
             )
             if google_rows
             else 0.0
@@ -346,10 +351,13 @@ def collect_revenues(period: Period, config: AppConfig, as_of: date | None = Non
             _warn("App Store Connect", f"primary window failed: {exc}")
             apple_revenue = latest.apple_revenue if latest else 0.0
 
-        logger.info("Google Play: primary window…")
+        logger.info("Google Play: primary window (estimated sales)…")
         try:
             google_revenue = google_play.fetch_google_revenue(
-                primary_start, primary_end, package_names=package_names
+                primary_start,
+                primary_end,
+                package_names=package_names,
+                target_currency=target_currency,
             )
         except Exception as exc:  # noqa: BLE001
             _warn("Google Play", f"primary window failed: {exc}")

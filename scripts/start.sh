@@ -84,6 +84,11 @@ fi
 source .venv/bin/activate
 ok "Virtualenv active: $VIRTUAL_ENV"
 
+if ! python -m pip --version >/dev/null 2>&1; then
+  step "Bootstrapping pip (missing from .venv)"
+  python -m ensurepip --upgrade
+fi
+
 step "Upgrading pip"
 python -m pip install --upgrade pip
 

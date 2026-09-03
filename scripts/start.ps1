@@ -46,6 +46,11 @@ $Activate = Join-Path $Root ".venv\Scripts\Activate.ps1"
 . $Activate
 Write-Host "✓ Virtualenv active"
 
+if (-not (python -m pip --version 2>$null)) {
+  Write-Host "→ Bootstrapping pip (missing from .venv)"
+  python -m ensurepip --upgrade
+}
+
 Write-Host "→ Upgrading pip"
 python -m pip install --upgrade pip
 

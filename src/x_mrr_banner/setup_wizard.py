@@ -636,6 +636,13 @@ def _escape_env_value(value: str) -> str:
 
 
 def write_env_file(values: dict[str, str], path: Path = ENV_PATH) -> Path:
+    # Merge with on-disk values so Ctrl+C / partial saves never drop secrets
+    # that were already present but not re-entered in this session.
+    merged = _parse_env_file(path) if path.exists() else {}
+    for key, value in values.items():
+        if value != "":
+            merged[key] = value
+
     order = [
         ("App Store Connect", ["ASC_ISSUER_ID", "ASC_KEY_ID", "ASC_PRIVATE_KEY", "ASC_VENDOR_NUMBER"]),
         ("Google Play", [
@@ -652,12 +659,20 @@ def write_env_file(values: dict[str, str], path: Path = ENV_PATH) -> Path:
         "",
     ]
     for title, keys in order:
-        present = [k for k in keys if k in values and values[k] != ""]
+        present = [k for k in keys if k in merged and merged[k] != ""]
         if not present:
             continue
         lines.append(f"# --- {title} ---")
         for key in present:
-            lines.append(f"{key}={_escape_env_value(values[key])}")
+            lines.append(f"{key}={_escape_env_value(merged[key])}")
+        lines.append("")
+    # Preserve any extra keys not in the ordered sections.
+    known = {k for _, keys in order for k in keys}
+    extras = sorted(k for k, v in merged.items() if k not in known and v != "")
+    if extras:
+        lines.append("# --- Other ---")
+        for key in extras:
+            lines.append(f"{key}={_escape_env_value(merged[key])}")
         lines.append("")
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     try:
@@ -1455,7 +1470,10 @@ def collect_secrets_interactively(
             _advance_after_step(f"{section.name} setup complete — great job!")
     except KeyboardInterrupt:
         print()
-        _persist_progress(values, reason="interrupted")
+        if any((v or "").strip() for v in values.values()):
+            _persist_progress(values, reason="interrupted")
+        else:
+            ui.warn("Setup interrupted — existing .env left unchanged.")
         ui.warn("Setup interrupted — re-run start to continue from where you left off.")
         raise SystemExit(130) from None
 
