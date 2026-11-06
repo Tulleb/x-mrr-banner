@@ -50,6 +50,15 @@ apps:
       - "nars_pass2"
       - "nars_pass3"
       - "nars_pass4"
+      - "com.tulleb.Voila.Pack.VIP"
+      - "com.tulleb.Voila.Plan.Basic.Weekly"
+      - "com.tulleb.Voila.Plan.Basic.Yearly"
+      - "com.tulleb.Voila.Plan.Pro.Weekly"
+      - "com.tulleb.Voila.Plan.Pro.Yearly"
+      - "com.tulleb.Voila.Plan.Pro.Weekly.ForVIPs"
+      - "com.tulleb.Voila.Plan.Pro.Yearly.ForVIPs"
+      - "com.tulleb.Voila.VIPPlan.Pro.Weekly"
+      - "com.tulleb.Voila.VIPPlan.Pro.Yearly"
     google_package_names: []
   - name: "Hint"
     apple_skus:
@@ -60,5 +69,6 @@ apps:
       - "com.tulleb.indix.plus.year"
       - "com.tulleb.indix.plus.week.full"
       - "com.tulleb.indix.plus.year.full"
+      - "categories_daily"
     google_package_names:
       - "com.tulleb.indix"
