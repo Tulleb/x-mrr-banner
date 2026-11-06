@@ -72,3 +72,10 @@ apps:
       - "categories_daily"
     google_package_names:
       - "com.tulleb.indix"
+  - name: "VRTX"
+    apple_skus:
+      - "com.tulleb.vrtx"
+    # IAP / subscription Product IDs (SKU column in ASC sales reports)
+    apple_iap_skus:
+      - "app.full"
+    google_package_names: []
