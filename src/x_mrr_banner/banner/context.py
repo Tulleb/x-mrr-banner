@@ -12,6 +12,7 @@ from x_mrr_banner.config import (
     BANNER_TEMPLATE_PATH,
     BANNER_WIDTH,
     AppConfig,
+    AppRevenue,
     RevenueSnapshot,
     challenge_current_period,
     default_content_headline,
@@ -51,15 +52,24 @@ def build_banner_context(config: AppConfig, snapshot: RevenueSnapshot) -> dict[s
         for point in snapshot.series
     ]
 
-    apps = [
-        {
+    entries_by_name = {entry.name: entry for entry in config.apps}
+
+    def _app_context(app: AppRevenue) -> dict[str, Any]:
+        entry = entries_by_name.get(app.name)
+        # Only show a store stat when the app is configured for that store.
+        show_apple = bool(entry and entry.revenue_apple_skus())
+        show_google = bool(entry and entry.google_package_names)
+        return {
             "name": app.name,
             "current_mrr_formatted": format_currency(app.total_revenue, currency),
             "apple_mrr_formatted": format_currency(app.apple_revenue, currency),
             "google_mrr_formatted": format_currency(app.google_revenue, currency),
+            "show_apple": show_apple,
+            "show_google": show_google,
+            "show_store_split": show_apple or show_google,
         }
-        for app in snapshot.apps
-    ]
+
+    apps = [_app_context(app) for app in snapshot.apps]
 
     chart_app_names = [app.name for app in snapshot.apps]
     icon_apps = [app.name for app in config.apps[:MAX_LOGO_SLOTS]]

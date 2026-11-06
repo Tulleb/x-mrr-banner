@@ -100,10 +100,25 @@ Render one compact app block containing:
 - app name exactly: `{{ app.name }}`
 - total MRR exactly: `{{ app.current_mrr_formatted }} MRR`
 
+{% if app.show_store_split -%}
 Under the app name and total MRR, render the store split:
-
+{% if app.show_apple %}
 - small recognizable App Store icon followed by `{{ app.apple_mrr_formatted }}`
+{%- endif %}
+{%- if app.show_google %}
 - small recognizable Play Store icon followed by `{{ app.google_mrr_formatted }}`
+{%- endif %}
+{%- if not app.show_apple %}
+
+Do NOT render an App Store icon or App Store amount for this app.
+{%- endif %}
+{%- if not app.show_google %}
+
+Do NOT render a Play Store icon or Play Store amount for this app.
+{%- endif %}
+{% else -%}
+Do NOT render any store split, store icon, or store amount for this app.
+{% endif %}
 
 {% endfor %}
 
@@ -222,9 +237,11 @@ Preferred visual structure for each app:
 
 `[APP ICON]  App Name    $X.XX MRR`
 
-Underneath:
+Underneath, only the store stats listed for that app (one or two):
 
 `[Store icon] amount   |   [Store icon] amount`
+
+If an app lists only one store stat, show just that one. If it lists none, omit the store row entirely.
 
 Do not put individual apps inside separate large cards.
 
@@ -316,10 +333,10 @@ App Store and Play Store icons are NOT post-processed.
 
 They must be drawn directly in the generated banner.
 
-For each app:
+For each app, draw store icons only for the store stats listed in that app's block:
 
-- draw one small recognizable App Store icon beside the App Store MRR amount
-- draw one small recognizable Play Store icon beside the Play Store MRR amount
+- one small recognizable App Store icon beside the App Store MRR amount, when listed
+- one small recognizable Play Store icon beside the Play Store MRR amount, when listed
 - target approximately 14–20 px visual size
 - keep them clean and immediately recognizable
 - use them as compact platform indicators
@@ -496,8 +513,12 @@ Preserve all of the following values exactly:
 {% for app in apps %}
 - App name: `{{ app.name }}`
 - App MRR: `{{ app.current_mrr_formatted }} MRR`
+{%- if app.show_apple %}
 - App Store MRR: `{{ app.apple_mrr_formatted }}`
+{%- endif %}
+{%- if app.show_google %}
 - Play Store MRR: `{{ app.google_mrr_formatted }}`
+{%- endif %}
 {% endfor %}
 - Month: `{{ challenge.month_label }}`
 - Current MRR: `{{ content.revenue_label }}`
