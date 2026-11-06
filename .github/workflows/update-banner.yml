@@ -2,8 +2,8 @@ name: Update X banner
 
 on:
   schedule:
-    # Monthly on the 5th at 06:00 UTC (previous full calendar month; gives stores time to publish reports)
-    - cron: "0 6 5 * *"
+    # Monthly on the 6th at 06:00 UTC (previous full calendar month; gives stores time to publish reports)
+    - cron: "0 6 6 * *"
   workflow_dispatch:
     inputs:
       upload_to_x:
