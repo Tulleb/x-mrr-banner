@@ -135,7 +135,10 @@ def sum_apple_proceeds(
     by_currency: dict[str, float] = {}
     for row in rows:
         sku = (row.get("SKU") or row.get("sku") or "").strip()
-        if allowed and sku not in allowed:
+        # IAP / subscription rows carry the parent app's SKU in "Parent Identifier",
+        # so an app SKU in the filter covers all of that app's products.
+        parent = (row.get("Parent Identifier") or row.get("parent_identifier") or "").strip()
+        if allowed and sku not in allowed and parent not in allowed:
             continue
         proceeds = row.get("Developer Proceeds") or row.get("developer_proceeds") or "0"
         units = row.get("Units") or row.get("units") or "1"
