@@ -148,9 +148,9 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
 .envrc
 .venv
+.secret.local
 
 # App Store Connect private keys / local secret drops (never commit)
 secrets/

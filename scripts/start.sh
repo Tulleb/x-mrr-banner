@@ -162,7 +162,7 @@ run_banner() {
 }
 
 offer_x_upload() {
-  # Only prompt when X OAuth credentials are present in .env / environment.
+  # Only prompt when X OAuth credentials are present in .secret.local / environment.
   if ! python -c '
 from x_mrr_banner.config import load_dotenv_files
 import os
@@ -234,7 +234,7 @@ fi
 
 echo
 step "Starting interactive setup wizard"
-info "API keys → .env + GitHub Actions secrets"
+info "API keys → .secret.local + GitHub Actions secrets"
 info "Banner preferences → config.yaml"
 echo
 python -m x_mrr_banner setup "$@"

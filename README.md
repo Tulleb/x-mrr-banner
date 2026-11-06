@@ -21,10 +21,10 @@ cd x-mrr-banner
 ./scripts/start.sh
 ```
 
-Start creates `.venv`, runs `pip install -e .`, helps with `gh`, and launches the credential + preference wizard (`.env`, `config.yaml`, Actions secrets). It then **asks** whether to generate the first banner locally (`update --dry-run` → `output/YYYYMM/`), and if X credentials are set, whether to **upload that banner to your X profile**.
+Start creates `.venv`, runs `pip install -e .`, helps with `gh`, and launches the credential + preference wizard (`.secret.local`, `.env`, `config.yaml`, Actions secrets). It then **asks** whether to generate the first banner locally (`update --dry-run` → `output/YYYYMM/`), and if X credentials are set, whether to **upload that banner to your X profile**.
 
 ```bash
-git add config.yaml
+git add config.yaml .env
 git commit -m "Add banner preferences"
 git push
 ```
@@ -55,7 +55,7 @@ The Action always updates the **previous full calendar month** (cron on the 1st,
 | `X_*` | v1.1 `update_profile_banner` (OAuth 1.0a; no v2) | Synced if configured |
 | `OPENAI_API_KEY` | Full banner generation via OpenAI | Synced by setup |
 
-See [`.env.example`](.env.example). Kind reminder to never ever commit your `.env` file when containing secrets.
+Non-secret image settings live in [`.env`](.env) / [`.env.example`](.env.example). Credentials go in [`.secret.local`](.secret.local.example) — never commit that file.
 
 ## How it works
 

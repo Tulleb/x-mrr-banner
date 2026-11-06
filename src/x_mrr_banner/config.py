@@ -16,6 +16,10 @@ BANNER_WIDTH = 1500
 BANNER_HEIGHT = 500
 BANNER_ASPECT_RATIO = "3:1"
 
+# Image generation defaults (overridable via BANNER_IMAGE_PROVIDER / BANNER_IMAGE_MODEL in .env).
+DEFAULT_BANNER_IMAGE_PROVIDER = "openai"
+DEFAULT_BANNER_IMAGE_MODEL = "gpt-image-2.6-sunburst"
+
 
 def _find_repo_root() -> Path:
     """Prefer a directory that contains config.yaml (cwd walk, then package walk)."""
@@ -421,13 +425,17 @@ def _load_apps(raw: dict[str, Any]) -> list[AppEntry]:
 
 
 def load_dotenv_files() -> None:
-    """Load repo `.env`, overriding shell-exported vars when the file exists.
+    """Load repo `.env` then `.secret.local`, overriding shell-exported vars.
 
-    So a project-local OPENAI_API_KEY (etc.) wins over a key set in ~/.zshrc.
+    Non-secret config lives in `.env` (committable). Credentials live in
+    `.secret.local` (gitignored) and win over `.env` / shell exports.
     """
     env_path = REPO_ROOT / ".env"
     if env_path.is_file():
         load_dotenv(env_path, override=True)
+    secret_path = REPO_ROOT / ".secret.local"
+    if secret_path.is_file():
+        load_dotenv(secret_path, override=True)
 
 
 def load_config(path: Path | None = None) -> AppConfig:

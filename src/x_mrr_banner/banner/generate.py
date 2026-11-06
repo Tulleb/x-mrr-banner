@@ -15,18 +15,24 @@ from x_mrr_banner.config import (
     BANNER_HEIGHT,
     BANNER_OUTPUT_PATH,
     BANNER_WIDTH,
+    DEFAULT_BANNER_IMAGE_MODEL,
+    DEFAULT_BANNER_IMAGE_PROVIDER,
     WatermarkConfig,
 )
 
 logger = logging.getLogger(__name__)
 
-OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2").strip() or "gpt-image-2"
-# gpt-image-2 allows custom WxH (multiples of 16, ratio within 1:3–3:1).
+_SUPPORTED_PROVIDERS = frozenset({"openai"})
+# gpt-image-2 family allows custom WxH (multiples of 16, ratio within 1:3–3:1).
 # Prefer a true 3:1 canvas so we do not center-crop content away from 1536x1024.
 _DEFAULT_OPENAI_SIZE = "1536x512"
-OPENAI_IMAGE_SIZE = (
-    os.environ.get("OPENAI_IMAGE_SIZE", _DEFAULT_OPENAI_SIZE).strip() or _DEFAULT_OPENAI_SIZE
-)
+
+
+def _env_or_default(name: str, default: str) -> str:
+    return os.environ.get(name, default).strip() or default
+
+
+OPENAI_IMAGE_SIZE = _env_or_default("OPENAI_IMAGE_SIZE", _DEFAULT_OPENAI_SIZE)
 
 
 def _fit_to_banner(image: Image.Image, width: int = BANNER_WIDTH, height: int = BANNER_HEIGHT) -> Image.Image:
@@ -55,6 +61,7 @@ def _save_openai_image(
     response: object,
     destination: Path,
     *,
+    model: str,
     icons: list[Image.Image] | None = None,
     app_names: list[str] | None = None,
     background_color: str = "#0B0D10",
@@ -65,7 +72,7 @@ def _save_openai_image(
     if not data:
         raise RuntimeError(
             "OpenAI returned no image data. Check OPENAI_API_KEY and model availability "
-            f"for {OPENAI_IMAGE_MODEL}."
+            f"for {model}."
         )
     item = data[0]
     b64 = getattr(item, "b64_json", None)
@@ -105,6 +112,14 @@ def generate_banner(
     watermark: WatermarkConfig | None = None,
 ) -> Path:
     """Generate the final X banner image from a fully rendered prompt."""
+    provider = _env_or_default("BANNER_IMAGE_PROVIDER", DEFAULT_BANNER_IMAGE_PROVIDER).lower()
+    model = _env_or_default("BANNER_IMAGE_MODEL", DEFAULT_BANNER_IMAGE_MODEL)
+    if provider not in _SUPPORTED_PROVIDERS:
+        supported = ", ".join(sorted(_SUPPORTED_PROVIDERS))
+        raise RuntimeError(
+            f"Unsupported BANNER_IMAGE_PROVIDER={provider!r}. Supported: {supported}."
+        )
+
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is required to generate the banner")
@@ -113,15 +128,16 @@ def generate_banner(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "Generating banner with OpenAI %s (%s → %sx%s)",
-        OPENAI_IMAGE_MODEL,
+        "Generating banner with %s %s (%s → %sx%s)",
+        provider,
+        model,
         OPENAI_IMAGE_SIZE,
         BANNER_WIDTH,
         BANNER_HEIGHT,
     )
     client = OpenAI(api_key=api_key)
     response = client.images.generate(
-        model=OPENAI_IMAGE_MODEL,
+        model=model,
         prompt=prompt_markdown,
         size=OPENAI_IMAGE_SIZE,
         quality="low",
@@ -130,6 +146,7 @@ def generate_banner(
     _save_openai_image(
         response,
         output_path,
+        model=model,
         icons=icons,
         app_names=app_names,
         background_color=background_color,

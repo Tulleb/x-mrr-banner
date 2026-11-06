@@ -208,17 +208,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     setup = sub.add_parser(
         "setup",
-        help="Interactive wizard: write .env, config.yaml preferences, and sync GitHub secrets",
+        help=(
+            "Interactive wizard: write .secret.local + .env, config.yaml preferences, "
+            "and sync GitHub secrets"
+        ),
     )
     setup.add_argument(
         "--local-only",
         action="store_true",
-        help="Write .env / config.yaml only; do not call `gh secret set`",
+        help="Write .secret.local / .env / config.yaml only; do not call `gh secret set`",
     )
     setup.add_argument(
         "--github-only",
         action="store_true",
-        help="Push secrets from an existing .env to the fork via `gh`",
+        help="Push secrets from an existing .secret.local to the fork via `gh`",
     )
     setup.add_argument(
         "--skip-config",
